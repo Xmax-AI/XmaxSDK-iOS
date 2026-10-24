@@ -78,9 +78,9 @@ public protocol RealtimeExternalFrameSink: AnyObject, Sendable {
 
     /// The processed media format used for local preview and adaptive quality.
     ///
-    /// XmaxSDK limits the pixel area to the model's maximum and aligns each dimension to a multiple
-    /// of four. The source frame rate and encoding options are preserved. Submit frames at the
-    /// source's dimensions; XmaxSDK resizes them to this format.
+    /// XmaxSDK scales the pixel area into the model's supported range and aligns each dimension to
+    /// a multiple of four. The source frame rate and encoding options are preserved. Submit frames
+    /// at the source's dimensions; XmaxSDK resizes them to this format.
     var videoFormat: RealtimeVideoFormat {
         get
     }

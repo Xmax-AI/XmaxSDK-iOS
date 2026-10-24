@@ -177,6 +177,49 @@ final class ExternalVideoFrameSinkTests: XCTestCase {
         XCTAssertTrue(recorder.errors.isEmpty)
     }
 
+    func testSmallFramesAreUpscaledWithoutChangingTheDeclaredSource() throws {
+        for pixelFormat in [kCVPixelFormatType_32BGRA, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange] {
+            let recorder = Recorder()
+            let source = RealtimeVideoFormat(
+                width: 512,
+                height: 960,
+                fps: 24
+            )
+            let size = try MediaService().resolveMediaSize(
+                source.size,
+                source: .external
+            )
+            let resolved = source.resized(
+                width: Int(size.width),
+                height: Int(size.height)
+            )
+            let sink = makeSink(
+                recorder,
+                sourceFormat: source,
+                resolvedFormat: resolved
+            )
+            let buffer = try makeBuffer(
+                width: source.width,
+                height: source.height,
+                pixelFormat: pixelFormat
+            )
+            sink.pushVideo(
+                buffer,
+                timestamp: CMTime(value: 10, timescale: 1)
+            )
+
+            let frame = try XCTUnwrap(recorder.frames.first)
+            XCTAssertEqual(frame.format.width, 544)
+            XCTAssertEqual(frame.format.height, 1020)
+            XCTAssertEqual(frame.timestampUs, 10000000)
+            XCTAssertEqual(sink.videoFormat.fps, 24)
+            XCTAssertEqual(CVPixelBufferGetWidth(buffer), source.width)
+            XCTAssertEqual(CVPixelBufferGetHeight(buffer), source.height)
+            XCTAssertTrue(recorder.errors.isEmpty)
+            XCTAssertTrue(sink.isRequestingFrames)
+        }
+    }
+
     func testNV12PlaneCopyAndUnsupportedFullRange() throws {
         let recorder = Recorder()
         let sink = makeSink(recorder)

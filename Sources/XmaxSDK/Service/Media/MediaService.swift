@@ -34,11 +34,10 @@ final class MediaService: MediaServicing, Sendable {
     ///     integer dimensions.
     ///   - source: The media source. Camera dimensions must match a configured model bucket.
     ///
-    /// - Returns: Dimensions aligned to 4 within the model limit, without upscaling and preserving
-    ///   exact aspect ratio when possible.
+    /// - Returns: Dimensions aligned to 4 within the model's area limits, upscaling or downscaling
+    ///   as needed and preserving exact aspect ratio when possible.
     ///
-    /// - Throws: An error if dimensions are invalid, a camera bucket does not match, or aligned
-    ///   output falls below the model's minimum input area.
+    /// - Throws: An error if dimensions are invalid or a camera bucket does not match.
     func resolveMediaSize(
         _ sourceMediaSize: CGSize,
         source: RealtimeMediaSource
@@ -65,24 +64,15 @@ final class MediaService: MediaServicing, Sendable {
         }
 
         let pixels = Double(width) * Double(height)
-        let scale = min(
-            1,
-            sqrt(Double(model.maximumInputPixels) / pixels)
-        )
-        let size = try alignedSize(
+        let pixelLimits = model.minimumInputPixels...model.maximumInputPixels
+        let targetPixels = min(max(pixels, Double(pixelLimits.lowerBound)), Double(pixelLimits.upperBound))
+        return try alignedSize(
             width: width,
             height: height,
-            scale: scale,
-            alignment: 4
+            scale: sqrt(targetPixels / pixels),
+            alignment: 4,
+            pixelLimits: pixelLimits
         )
-        guard size.width * size.height >= CGFloat(model.minimumInputPixels) else {
-            throw XmaxError(
-                code: .invalidConfiguration,
-                message: "Media resolution must contain at least \(model.minimumInputPixels) pixels"
-            )
-        }
-
-        return size
     }
 
     /// Selects the closest generation canvas without changing local media dimensions.
@@ -151,7 +141,9 @@ final class MediaService: MediaServicing, Sendable {
         // Alignment may cross the area boundary; select the closest valid candidate.
         return boundedAlignedSize(
             width: Double(size.width) * scale,
-            height: Double(size.height) * scale
+            height: Double(size.height) * scale,
+            alignment: model.inputSizeAlignment,
+            pixelLimits: model.minimumInputPixels...model.maximumInputPixels
         )
     }
 
@@ -242,23 +234,25 @@ final class MediaService: MediaServicing, Sendable {
 
 private extension MediaService {
 
-    /// Resolves aligned dimensions within a scale limit, preferring exact aspect ratio.
+    /// Resolves aligned dimensions at a requested scale, preferring exact aspect ratio.
     ///
     /// - Parameters:
     ///   - width: The original integer pixel width.
     ///   - height: The original integer pixel height.
-    ///   - scale: The uniform scale, no greater than 1.
+    ///   - scale: The requested uniform scale.
     ///   - alignment: The required dimension alignment, in pixels.
+    ///   - pixelLimits: Optional area bounds. Without bounds, alignment only rounds down.
     ///
-    /// - Returns: Aligned dimensions within the scale limit, rounded down independently if exact
-    ///   aspect ratio is impossible.
+    /// - Returns: Aligned dimensions satisfying the area bounds, preserving exact aspect ratio
+    ///   when possible. Without bounds, dimensions do not exceed the requested scale.
     ///
     /// - Throws: An error if the scale limit cannot fit one alignment unit.
     func alignedSize(
         width: Int,
         height: Int,
         scale: Double,
-        alignment: Int
+        alignment: Int,
+        pixelLimits: ClosedRange<Int>? = nil
     ) throws -> CGSize {
         // Use integer multiples of the reduced aspect ratio to avoid independent rounding.
         var divisor = width
@@ -269,17 +263,38 @@ private extension MediaService {
 
         let ratioWidth = width / divisor
         let ratioHeight = height / divisor
-        let alignedScale = Int(floor(Double(divisor) * scale / Double(alignment))) * alignment
+        var alignedScale = Int(floor(Double(divisor) * scale / Double(alignment))) * alignment
+        if let pixelLimits {
+            let ratioPixels = Double(ratioWidth) * Double(ratioHeight)
+            let minimumScale = sqrt(Double(pixelLimits.lowerBound) / ratioPixels)
+            let minimumAlignedScale = Int(ceil(minimumScale / Double(alignment))) * alignment
+            alignedScale = max(alignedScale, minimumAlignedScale)
+        }
 
-        if alignedScale >= alignment {
+        let exactWidth = Double(ratioWidth) * Double(alignedScale)
+        let exactHeight = Double(ratioHeight) * Double(alignedScale)
+        let maximumPixels = pixelLimits.map { Double($0.upperBound) } ?? .infinity
+        if alignedScale >= alignment, exactWidth * exactHeight <= maximumPixels {
             return CGSize(
-                width: ratioWidth * alignedScale,
-                height: ratioHeight * alignedScale
+                width: exactWidth,
+                height: exactHeight
             )
         }
 
         let alignedWidth = Int(floor(Double(width) * scale / Double(alignment))) * alignment
         let alignedHeight = Int(floor(Double(height) * scale / Double(alignment))) * alignment
+        let alignedPixels = Double(alignedWidth) * Double(alignedHeight)
+        if let pixelLimits,
+            alignedPixels < Double(pixelLimits.lowerBound) || alignedPixels > Double(pixelLimits.upperBound)
+        {
+            return boundedAlignedSize(
+                width: Double(width) * scale,
+                height: Double(height) * scale,
+                alignment: alignment,
+                pixelLimits: pixelLimits
+            )
+        }
+
         guard alignedWidth >= alignment, alignedHeight >= alignment else {
             throw XmaxError(
                 code: .invalidConfiguration,
@@ -293,21 +308,24 @@ private extension MediaService {
         )
     }
 
-    /// Selects the closest dimensions satisfying model area and alignment.
+    /// Selects the closest dimensions satisfying area and alignment limits.
     ///
     /// - Parameters:
     ///   - width: The scaled target width, in pixels.
     ///   - height: The scaled target height, in pixels.
+    ///   - alignment: The required dimension alignment, in pixels.
+    ///   - pixelLimits: The inclusive output area bounds, in pixels.
     ///
     /// - Returns: The valid dimensions with the smallest relative width and height error.
     func boundedAlignedSize(
         width: Double,
-        height: Double
+        height: Double,
+        alignment: Int,
+        pixelLimits: ClosedRange<Int>
     ) -> CGSize {
-        let alignment = model.inputSizeAlignment
         let unitPixels = alignment * alignment
-        let minimumUnits = (model.minimumInputPixels + unitPixels - 1) / unitPixels
-        let maximumUnits = model.maximumInputPixels / unitPixels
+        let minimumUnits = (pixelLimits.lowerBound + unitPixels - 1) / unitPixels
+        let maximumUnits = pixelLimits.upperBound / unitPixels
         var bestSize = CGSize.zero
         var bestDistance = Double.infinity
 

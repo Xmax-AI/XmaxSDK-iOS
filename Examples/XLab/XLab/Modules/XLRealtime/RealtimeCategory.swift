@@ -41,7 +41,7 @@ struct RealtimeCategory: Identifiable, Sendable {
         RealtimeCategory(
             id: "mox",
             content: .instruction,
-            defaultPrompt: "角色沿着拖拽轨迹运动，位置贴合轨迹，运动过渡自然"
+            defaultPrompt: ""
         ),
         RealtimeCategory(
             id: "free",
