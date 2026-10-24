@@ -26,7 +26,7 @@ final class RealtimeModelTests: XCTestCase {
 
         for model in models {
             XCTAssertEqual(model.defaultFrameRate, 30)
-            XCTAssertEqual(model.minimumInputPixels, 500000)
+            XCTAssertEqual(model.minimumInputPixels, 200000)
             XCTAssertEqual(model.maximumInputPixels, 2100000)
             XCTAssertEqual(model.inputSizeAlignment, 32)
             XCTAssertEqual(

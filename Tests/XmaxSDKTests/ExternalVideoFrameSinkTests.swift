@@ -181,8 +181,8 @@ final class ExternalVideoFrameSinkTests: XCTestCase {
         for pixelFormat in [kCVPixelFormatType_32BGRA, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange] {
             let recorder = Recorder()
             let source = RealtimeVideoFormat(
-                width: 512,
-                height: 960,
+                width: 200,
+                height: 200,
                 fps: 24
             )
             let size = try MediaService().resolveMediaSize(
@@ -209,8 +209,8 @@ final class ExternalVideoFrameSinkTests: XCTestCase {
             )
 
             let frame = try XCTUnwrap(recorder.frames.first)
-            XCTAssertEqual(frame.format.width, 544)
-            XCTAssertEqual(frame.format.height, 1020)
+            XCTAssertEqual(frame.format.width, 448)
+            XCTAssertEqual(frame.format.height, 448)
             XCTAssertEqual(frame.timestampUs, 10000000)
             XCTAssertEqual(sink.videoFormat.fps, 24)
             XCTAssertEqual(CVPixelBufferGetWidth(buffer), source.width)

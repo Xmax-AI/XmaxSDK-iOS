@@ -67,16 +67,18 @@ final class MediaServiceTests: XCTestCase {
 
     func testSmallMediaIsUpscaledForEveryNonCameraSource() throws {
         let cases = [
-            (CGSize(width: 400, height: 752), CGSize(width: 600, height: 1128)),
-            (CGSize(width: 752, height: 400), CGSize(width: 1128, height: 600)),
-            (CGSize(width: 512, height: 960), CGSize(width: 544, height: 1020)),
-            (CGSize(width: 640, height: 480), CGSize(width: 832, height: 624)),
-            (CGSize(width: 1, height: 1), CGSize(width: 708, height: 708))
+            (CGSize(width: 400, height: 752), CGSize(width: 400, height: 752)),
+            (CGSize(width: 752, height: 400), CGSize(width: 752, height: 400)),
+            (CGSize(width: 512, height: 960), CGSize(width: 512, height: 960)),
+            (CGSize(width: 640, height: 480), CGSize(width: 640, height: 480)),
+            (CGSize(width: 256, height: 480), CGSize(width: 352, height: 660)),
+            (CGSize(width: 200, height: 200), CGSize(width: 448, height: 448)),
+            (CGSize(width: 1, height: 1), CGSize(width: 448, height: 448))
         ]
 
         for model in RealtimeModel.allCases {
             let service = MediaService(model: model)
-            XCTAssertEqual(model.minimumInputPixels, 500000)
+            XCTAssertEqual(model.minimumInputPixels, 200000)
             for source in [RealtimeMediaSource.image, .video, .external] {
                 for (original, expected) in cases {
                     let size = try service.resolveMediaSize(
@@ -107,21 +109,21 @@ final class MediaServiceTests: XCTestCase {
             let service = MediaService(model: model)
             for source in [RealtimeMediaSource.image, .video, .external] {
                 for original in [
-                    CGSize(width: 1001, height: 499),
-                    CGSize(width: 999, height: 500),
-                    CGSize(width: 1000, height: 500)
+                    CGSize(width: 1001, height: 199),
+                    CGSize(width: 999, height: 200),
+                    CGSize(width: 1000, height: 200)
                 ] {
                     for size in [original, CGSize(width: original.height, height: original.width)] {
                         let resolved = try service.resolveMediaSize(
                             size,
                             source: source
                         )
-                        let expected = size.width > size.height
-                            ? CGSize(width: 1000, height: 500)
-                            : CGSize(width: 500, height: 1000)
-                        XCTAssertEqual(resolved, expected)
                         XCTAssertGreaterThanOrEqual(resolved.width * resolved.height, CGFloat(model.minimumInputPixels))
                         XCTAssertLessThanOrEqual(resolved.width * resolved.height, CGFloat(model.maximumInputPixels))
+                        XCTAssertTrue(Int(resolved.width).isMultiple(of: 4))
+                        XCTAssertTrue(Int(resolved.height).isMultiple(of: 4))
+                        let ratioError = abs(resolved.width * size.height / (resolved.height * size.width) - 1)
+                        XCTAssertLessThan(ratioError, 0.01)
                     }
                 }
             }
@@ -130,8 +132,8 @@ final class MediaServiceTests: XCTestCase {
 
     func testMediaAreaLimitsHoldForExtremeRatiosAndAlignmentBoundaries() throws {
         let cases = [
-            CGSize(width: 1, height: 500001),
-            CGSize(width: 707, height: 708),
+            CGSize(width: 1, height: 200001),
+            CGSize(width: 447, height: 448),
             CGSize(width: 999, height: 501),
             CGSize(width: 1449, height: 1450),
             CGSize(width: 65535, height: 65537)
@@ -157,7 +159,7 @@ final class MediaServiceTests: XCTestCase {
     func testUpscaledMediaDoesNotImposeTheInputMinimumOnTargetSize() throws {
         let service = MediaService()
         let media = try service.resolveMediaSize(
-            CGSize(width: 512, height: 960),
+            CGSize(width: 200, height: 200),
             source: .video
         )
         let target = try service.resolveTargetSize(
@@ -166,8 +168,8 @@ final class MediaServiceTests: XCTestCase {
             frameInterpolationEnabled: false
         )
 
-        XCTAssertEqual(media, CGSize(width: 544, height: 1020))
-        XCTAssertEqual(target, CGSize(width: 256, height: 480))
+        XCTAssertEqual(media, CGSize(width: 448, height: 448))
+        XCTAssertEqual(target, CGSize(width: 224, height: 224))
         XCTAssertLessThan(target.width * target.height, CGFloat(service.model.minimumInputPixels))
     }
 

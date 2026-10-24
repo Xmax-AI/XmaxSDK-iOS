@@ -39,7 +39,7 @@ final class AdaptiveQualityTests: XCTestCase {
     func testUplinkMinimumAppliesAfterAlignmentWithoutChangingDownlink() {
         let minimum = RealtimeModel.x2_1_1_preview_cn.minimumInputPixels
         let uplink = QualityVideoFormat.resolve(baseline, level: .l5, downlink: false, minimumInputPixels: minimum)
-        XCTAssertEqual(uplink.size, CGSize(width: 544, height: 1020))
+        XCTAssertEqual(uplink.size, CGSize(width: 512, height: 960))
         XCTAssertEqual(uplink.fps, 16)
         XCTAssertEqual(
             QualityVideoFormat.resolve(baseline, level: .l5, downlink: true, minimumInputPixels: minimum).size,
@@ -47,7 +47,7 @@ final class AdaptiveQualityTests: XCTestCase {
         )
         for (width, height) in [
             (1024, 1920), (1920, 1024), (1080, 1920), (1000, 600), (1000, 500), (400, 1600),
-            (708, 708), (544, 1020), (1256, 1672), (1004, 504)
+            (708, 708), (544, 1020), (1256, 1672), (1004, 504), (448, 448), (500, 400)
         ] {
             let format = RealtimeVideoFormat(width: width, height: height, fps: 30)
             for level in RealtimeQualityLevel.allCases {
@@ -72,7 +72,7 @@ final class AdaptiveQualityTests: XCTestCase {
         )
         controller.completeQuality(downlink: false, level: .l5, success: true)
         XCTAssertEqual(controller.qualityConfiguration?.minimumInputPixels, minimum)
-        XCTAssertEqual(controller.qualityConfiguration?.uplink.size, CGSize(width: 544, height: 1020))
+        XCTAssertEqual(controller.qualityConfiguration?.uplink.size, CGSize(width: 512, height: 960))
     }
 
     func testDownlinkTierDimensionsRetainExistingAlignment() {
