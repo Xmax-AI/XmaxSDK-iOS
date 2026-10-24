@@ -151,7 +151,7 @@ final class EncodingControllerTests: XCTestCase {
             (width: 3840, height: 2160, fps: 30, minimum: 500, maximum: 15120),
             (width: 120, height: 120, fps: 30, minimum: 100, maximum: 100),
             (width: 1920, height: 1080, fps: 1, minimum: 200, maximum: 200),
-            (width: 2, height: 2, fps: 1, minimum: 100, maximum: 100)
+            (width: 4, height: 4, fps: 1, minimum: 100, maximum: 100)
         ]
 
         for testCase in cases {
@@ -198,7 +198,7 @@ final class EncodingControllerTests: XCTestCase {
 
         XCTAssertThrowsError(
             try controller.configure(
-                RealtimeVideoFormat(width: Int.max - 1, height: Int.max - 1, fps: Int.max)
+                RealtimeVideoFormat(width: Int.max - 3, height: Int.max - 3, fps: Int.max)
             )
         ) { error in
             XCTAssertEqual((error as? XmaxError)?.code, .invalidConfiguration)
@@ -243,5 +243,45 @@ final class EncodingControllerTests: XCTestCase {
         ) { error in
             XCTAssertEqual(error as? XmaxError, expectedError)
         }
+    }
+
+    func testConfigureRejectsEvenDimensionsThatAreNotFourAligned() {
+        let rtcManager = RtcManagingStub()
+        let controller = EncodingController(rtcManager: rtcManager)
+
+        for (width, height) in [(912, 1710), (528, 990), (1282, 720), (2, 2)] {
+            XCTAssertThrowsError(try controller.configure(RealtimeVideoFormat(
+                width: width,
+                height: height,
+                fps: 30
+            ))) { error in
+                XCTAssertEqual((error as? XmaxError)?.code, .invalidConfiguration)
+            }
+        }
+        XCTAssertTrue(rtcManager.encodingConfigurations.isEmpty)
+    }
+
+    func testConfigureAcceptsEveryUplinkTierWithModelMinimum() throws {
+        let rtcManager = RtcManagingStub()
+        let controller = EncodingController(rtcManager: rtcManager)
+        let baseline = RealtimeVideoFormat(width: 1024, height: 1920, fps: 30)
+        let minimum = RealtimeModel.x2_1_1_preview_cn.minimumInputPixels
+
+        for level in RealtimeQualityLevel.allCases {
+            let format = QualityVideoFormat.resolve(
+                baseline,
+                level: level,
+                downlink: false,
+                minimumInputPixels: minimum
+            )
+            try controller.configure(format)
+            let configuration = try XCTUnwrap(rtcManager.encodingConfigurations.last)
+            XCTAssertEqual(configuration.width, format.width)
+            XCTAssertEqual(configuration.height, format.height)
+            XCTAssertTrue(configuration.width.isMultiple(of: 4))
+            XCTAssertTrue(configuration.height.isMultiple(of: 4))
+            XCTAssertGreaterThanOrEqual(configuration.width * configuration.height, minimum)
+        }
+        XCTAssertEqual(rtcManager.encodingConfigurations.count, RealtimeQualityLevel.allCases.count)
     }
 }

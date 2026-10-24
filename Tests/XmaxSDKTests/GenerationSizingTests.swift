@@ -109,11 +109,11 @@ final class GenerationSizingTests: XCTestCase {
         )
     }
 
-    func testReturnSizeFallsBackToFourAlignmentWithoutChangingUplink() throws {
+    func testUplinkAndReturnSizeBothFallBackToFourAlignment() throws {
         let source = RealtimeVideoFormat(width: 802, height: 600, fps: 30)
         let target = try targetFormat(source, level: .l1, interpolation: false)
         XCTAssertEqual(target.size, CGSize(width: 800, height: 600))
-        XCTAssertEqual(QualityVideoFormat.resolve(source, level: .l1, downlink: false).size, source.size)
+        XCTAssertEqual(QualityVideoFormat.resolve(source, level: .l1, downlink: false).size, CGSize(width: 800, height: 600))
     }
 
     func testReturnSizeRemainsAlignedAndWithinLimitsAcrossTiersAndOrientations() throws {

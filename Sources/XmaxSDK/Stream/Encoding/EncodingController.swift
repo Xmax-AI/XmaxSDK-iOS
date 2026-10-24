@@ -24,14 +24,20 @@ final class EncodingController: EncodingControlling, Sendable {
     /// Validates and applies a resolved encoder configuration. An unspecified minimum uses 500
     /// kbps, capped by the maximum.
     ///
-    /// - Parameter videoFormat: The dimensions, frame rate, optional bitrate bounds, and encoding
-    ///   preference.
+    /// - Parameter videoFormat: The 4-aligned dimensions, frame rate, optional bitrate bounds, and
+    ///   encoding preference.
     ///
     /// - Throws: An error if the format, bitrate resolution, or RTC configuration fails.
     func configure(
         _ videoFormat: RealtimeVideoFormat
     ) throws {
         try videoFormat.validate()
+        guard videoFormat.width.isMultiple(of: 4), videoFormat.height.isMultiple(of: 4) else {
+            throw XmaxError(
+                code: .invalidConfiguration,
+                message: "Uplink video width and height must be multiples of 4"
+            )
+        }
 
         let budget = try EncodingBitratePolicy.resolve(videoFormat)
         let maximum = budget.maximum

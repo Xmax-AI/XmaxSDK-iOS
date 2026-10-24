@@ -13,8 +13,8 @@ protocol EncodingControlling: Sendable {
 
     /// Validates and applies a resolved encoder configuration.
     ///
-    /// - Parameter videoFormat: The dimensions, frame rate, optional bitrate bounds, and encoding
-    ///   preference.
+    /// - Parameter videoFormat: The 4-aligned dimensions, frame rate, optional bitrate bounds, and
+    ///   encoding preference.
     ///
     /// - Throws: An error if the format, bitrate resolution, or RTC configuration fails.
     func configure(
