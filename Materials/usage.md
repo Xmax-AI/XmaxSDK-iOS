@@ -283,7 +283,7 @@ To keep using a reference image, include its URL in the new context's
 
 ## SwiftUI
 
-Use `XmaxRealtimeVideo` instead of `XmaxRealtimeVideoView`. Keep the local and
+Use `XmaxRealtimeDualVideo` instead of `XmaxRealtimeDualVideoView`. Keep the local and
 remote tracks in observable state owned by the generation screen. A preview view
 can receive those tracks as inputs:
 
@@ -296,7 +296,7 @@ struct GenerationPreview: View {
     let remoteTrack: RealtimeVideoTrack?
 
     var body: some View {
-        XmaxRealtimeVideo(
+        XmaxRealtimeDualVideo(
             localTrack: localTrack,
             remoteTrack: remoteTrack,
             videoContentMode: .fill
@@ -324,6 +324,11 @@ Render `GenerationPreview(localTrack: localTrack, remoteTrack: remoteTrack)` in 
 screen's body. Both UIKit and SwiftUI views keep the local preview active beneath
 the generated output, wait for the first remote frame before showing it, and
 restore the preview when the remote track is set to `nil`.
+
+Both `XmaxRealtimeDualVideoView` and `XmaxRealtimeDualVideo` accept
+`remoteVideoFadeInDuration`, in seconds, with a default of `0.3`. Set it to `0`
+to show the first remote frame without animation; the view still waits for that
+frame before switching from the local preview.
 
 See the [SwiftUI example](../Examples/XLab/XLab/Modules/XLRealtime/SwiftUI/RealtimeView.swift)
 and its [session controller](../Examples/XLab/XLab/Modules/XLRealtime/SwiftUI/RealtimeSessionController.swift)
@@ -359,7 +364,7 @@ videoView.isInteractionEnabled = false
 In SwiftUI, set `isInteractionEnabled` when constructing the video view:
 
 ```swift
-XmaxRealtimeVideo(
+XmaxRealtimeDualVideo(
     localTrack: localTrack,
     remoteTrack: remoteTrack,
     isInteractionEnabled: false

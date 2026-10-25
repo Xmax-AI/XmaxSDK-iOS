@@ -208,7 +208,7 @@ final class ImageControllerTests: XCTestCase {
 
         try await MainActor.run {
             let binding = try XCTUnwrap(VideoRenderRegistry.binding(for: track))
-            try binding.attach(to: XmaxVideoView(), contentMode: .fill)
+            try binding.attach(to: XmaxRealtimeVideoView(), contentMode: .fill)
         }
 
         await controller.stopLocalImageStream()

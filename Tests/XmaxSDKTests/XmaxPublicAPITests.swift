@@ -126,7 +126,7 @@ final class XmaxPublicAPITests: XCTestCase {
 
     @MainActor
     func testPublicVideoViewAcceptsRealtimeTrackAndContentMode() {
-        let view = XmaxVideoView(
+        let view = XmaxRealtimeVideoView(
             videoContentMode: .fit,
             isInteractionEnabled: false
         )
@@ -141,7 +141,7 @@ final class XmaxPublicAPITests: XCTestCase {
 
     @MainActor
     func testPublicSwiftUIVideoAcceptsTrackAndDisplayOptions() {
-        let video = XmaxVideo(
+        let video = XmaxRealtimeVideo(
             track: nil,
             videoContentMode: .fit,
             isInteractionEnabled: false
@@ -149,6 +149,41 @@ final class XmaxPublicAPITests: XCTestCase {
 
         XCTAssertNil(video.track)
         XCTAssertEqual(video.videoContentMode, .fit)
+        XCTAssertFalse(video.isInteractionEnabled)
+    }
+
+    @MainActor
+    func testPublicDualVideoViewAcceptsLocalAndRemoteTracks() {
+        let view = XmaxRealtimeDualVideoView(
+            localTrack: nil,
+            remoteTrack: nil,
+            videoContentMode: .fit,
+            remoteVideoFadeInDuration: 0.7,
+            isInteractionEnabled: false
+        )
+
+        XCTAssertNil(view.localTrack)
+        XCTAssertNil(view.remoteTrack)
+        XCTAssertEqual(view.videoContentMode, .fit)
+        XCTAssertEqual(view.remoteVideoFadeInDuration, 0.7)
+        XCTAssertFalse(view.isInteractionEnabled)
+        XCTAssertEqual(view.subviews.compactMap { $0 as? XmaxRealtimeVideoView }.count, 2)
+    }
+
+    @MainActor
+    func testPublicSwiftUIDualVideoAcceptsTracksAndDisplayOptions() {
+        let video = XmaxRealtimeDualVideo(
+            localTrack: nil,
+            remoteTrack: nil,
+            videoContentMode: .fit,
+            remoteVideoFadeInDuration: 0,
+            isInteractionEnabled: false
+        )
+
+        XCTAssertNil(video.localTrack)
+        XCTAssertNil(video.remoteTrack)
+        XCTAssertEqual(video.videoContentMode, .fit)
+        XCTAssertEqual(video.remoteVideoFadeInDuration, 0)
         XCTAssertFalse(video.isInteractionEnabled)
     }
 

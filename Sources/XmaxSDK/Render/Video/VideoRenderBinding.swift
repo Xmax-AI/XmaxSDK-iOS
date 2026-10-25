@@ -76,7 +76,7 @@ final class VideoRenderBinding {
         guard let attachedView else {
             return
         }
-        (attachedView as? XmaxVideoView)?.clearImageFrame()
+        (attachedView as? XmaxRealtimeVideoView)?.clearImageFrame()
         try detachHandler(attachedView)
         self.attachedView = nil
     }
@@ -92,10 +92,10 @@ extension VideoRenderBinding {
     ) {
         self.init(
             attachHandler: { view, contentMode in
-                guard let videoView = view as? XmaxVideoView else {
+                guard let videoView = view as? XmaxRealtimeVideoView else {
                     throw XmaxError(
                         code: .invalidConfiguration,
-                        message: "Image tracks require an XmaxVideoView"
+                        message: "Image tracks require an XmaxRealtimeVideoView"
                     )
                 }
                 try videoView.displayImageFrame(
@@ -104,7 +104,7 @@ extension VideoRenderBinding {
                 )
             },
             detachHandler: { view in
-                (view as? XmaxVideoView)?.clearImageFrame()
+                (view as? XmaxRealtimeVideoView)?.clearImageFrame()
             }
         )
     }

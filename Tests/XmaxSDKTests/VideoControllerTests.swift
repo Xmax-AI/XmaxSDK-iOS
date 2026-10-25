@@ -41,7 +41,7 @@ final class VideoControllerTests: XCTestCase {
         let components = makeComponents(hasAudio: true)
         let stream = try await components.controller.createLocalVideoStream(fileURL: fileURL)
         let track = try XCTUnwrap(stream.videoTrack)
-        let view = XmaxVideoView()
+        let view = XmaxRealtimeVideoView()
         try VideoRenderRegistry.binding(for: track)?.attach(to: view, contentMode: .fit)
         await components.controller.stopLocalVideoStream()
         XCTAssertEqual(components.player.calls.last, .stop)

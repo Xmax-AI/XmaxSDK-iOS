@@ -63,10 +63,10 @@ protocol VideoPlayerControlling: Sendable {
     /// Attaches decoded preview to an SDK video view.
     ///
     /// - Parameters:
-    ///   - view: The `XmaxVideoView` receiving preview.
+    ///   - view: The `XmaxRealtimeVideoView` receiving preview.
     ///   - contentMode: The video content mode.
     ///
-    /// - Throws: An error if the view is not an `XmaxVideoView`.
+    /// - Throws: An error if the view is not an `XmaxRealtimeVideoView`.
     @MainActor
     func attachPreview(
         to view: UIView,
@@ -264,18 +264,18 @@ final class VideoPlayerController: VideoPlayerControlling {
     /// Attaches decoded preview to an SDK video view.
     ///
     /// - Parameters:
-    ///   - view: The `XmaxVideoView` receiving preview.
+    ///   - view: The `XmaxRealtimeVideoView` receiving preview.
     ///   - contentMode: The video content mode.
     ///
-    /// - Throws: An error if the view is not an `XmaxVideoView`.
+    /// - Throws: An error if the view is not an `XmaxRealtimeVideoView`.
     func attachPreview(
         to view: UIView,
         contentMode: VideoContentMode
     ) throws {
-        guard let videoView = view as? XmaxVideoView else {
+        guard let videoView = view as? XmaxRealtimeVideoView else {
             throw XmaxError(
                 code: .invalidConfiguration,
-                message: "File video tracks require an XmaxVideoView"
+                message: "File video tracks require an XmaxRealtimeVideoView"
             )
         }
         previewPresenter.attach(
@@ -290,7 +290,7 @@ final class VideoPlayerController: VideoPlayerControlling {
     func detachPreview(
         from view: UIView
     ) {
-        guard let videoView = view as? XmaxVideoView else {
+        guard let videoView = view as? XmaxRealtimeVideoView else {
             return
         }
         previewPresenter.detach(from: videoView)

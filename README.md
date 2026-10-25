@@ -274,7 +274,7 @@ let localStream = try await realtime.createLocalCameraStream(
     position: .front
 )
 
-let videoView = XmaxRealtimeVideoView(
+let videoView = XmaxRealtimeDualVideoView(
     localTrack: localStream.videoTrack,
     videoContentMode: .fill
 )
@@ -294,15 +294,18 @@ Add the video view to your view hierarchy. The view displays a local camera
 preview until the first generated frame arrives, with touch interaction enabled
 by default.
 
+Set `remoteVideoFadeInDuration` to customize the remote video's fade-in duration
+in seconds. The default is `0.3`; use `0` to show it without animation.
+
 <br>
 
 ### Using SwiftUI
 
-Use `XmaxRealtimeVideo` as your primary SwiftUI view. Store the local and remote
+Use `XmaxRealtimeDualVideo` as your primary SwiftUI view. Store the local and remote
 tracks in observable state, updating them dynamically as streams become available:
 
 ```swift
-XmaxRealtimeVideo(
+XmaxRealtimeDualVideo(
     localTrack: localTrack,
     remoteTrack: remoteTrack,
     videoContentMode: .fill

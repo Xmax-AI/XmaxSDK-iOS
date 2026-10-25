@@ -60,7 +60,7 @@ public struct TrajectoryPoint: Sendable {
 @MainActor
 public protocol TrajectoryEffectRendering: AnyObject {
 
-    /// The trajectory view installed above an `XmaxVideoView`.
+    /// The trajectory view installed above an `XmaxRealtimeVideoView`.
     var view: UIView {
         get
     }

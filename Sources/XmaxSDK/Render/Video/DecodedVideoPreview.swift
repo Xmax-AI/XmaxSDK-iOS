@@ -15,7 +15,7 @@ import Foundation
 final class DecodedVideoPreviewPresenter {
 
     /// The local preview video view.
-    private weak var view: XmaxVideoView?
+    private weak var view: XmaxRealtimeVideoView?
 
     /// The local video content mode.
     private var contentMode = VideoContentMode.fill
@@ -29,7 +29,7 @@ final class DecodedVideoPreviewPresenter {
     ///   - view: The SDK video view receiving decoded frames.
     ///   - contentMode: The video content mode.
     func attach(
-        to view: XmaxVideoView,
+        to view: XmaxRealtimeVideoView,
         contentMode: VideoContentMode
     ) {
         self.view = view
@@ -42,7 +42,7 @@ final class DecodedVideoPreviewPresenter {
     ///
     /// - Parameter view: The view to detach.
     func detach(
-        from view: XmaxVideoView
+        from view: XmaxRealtimeVideoView
     ) {
         view.clearDecodedVideoPreview()
         if self.view === view {

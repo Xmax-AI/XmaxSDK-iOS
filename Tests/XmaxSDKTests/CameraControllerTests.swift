@@ -287,7 +287,7 @@ final class CameraControllerTests: XCTestCase {
         )
         let track = try XCTUnwrap(stream.videoTrack)
         let binding = try XCTUnwrap(VideoRenderRegistry.binding(for: track))
-        let view = XmaxVideoView()
+        let view = XmaxRealtimeVideoView()
         let ready = expectation(description: "Camera preview ready")
         var previewIsCurrent: (@Sendable () -> Bool)?
         controller.setPreviewReadyHandler { isCurrent in

@@ -83,7 +83,7 @@ final class RenderControllerTests: XCTestCase {
         let registration = try registerRemoteTrack(with: controller)
         addTeardownBlock { try await controller.resetRemoteTrack(registration.track) }
         let stream = RemoteStream(roomID: "room-id", userID: "bot-user")
-        let videoView = XmaxVideoView()
+        let videoView = XmaxRealtimeVideoView()
 
         try registration.binding.attach(
             to: videoView,
@@ -110,7 +110,7 @@ final class RenderControllerTests: XCTestCase {
             roomID: "room-id",
             userID: "second-user"
         )
-        let videoView = XmaxVideoView()
+        let videoView = XmaxRealtimeVideoView()
         try registration.binding.attach(
             to: videoView,
             contentMode: .fill
@@ -135,8 +135,8 @@ final class RenderControllerTests: XCTestCase {
         let registration = try registerRemoteTrack(with: controller)
         addTeardownBlock { try await controller.resetRemoteTrack(registration.track) }
         let stream = RemoteStream(roomID: "room-id", userID: "bot-user")
-        let firstVideoView = XmaxVideoView()
-        let secondVideoView = XmaxVideoView()
+        let firstVideoView = XmaxRealtimeVideoView()
+        let secondVideoView = XmaxRealtimeVideoView()
         try controller.setRemoteStream(stream)
         try registration.binding.attach(
             to: firstVideoView,
@@ -256,7 +256,7 @@ final class RenderControllerTests: XCTestCase {
         let registration = try registerRemoteTrack(with: controller)
         addTeardownBlock { try await controller.resetRemoteTrack(registration.track) }
         let stream = RemoteStream(roomID: "room-id", userID: "bot-user")
-        let videoView = XmaxVideoView()
+        let videoView = XmaxRealtimeVideoView()
         try controller.setRemoteStream(stream)
         try registration.binding.attach(
             to: videoView,
@@ -279,8 +279,8 @@ final class RenderControllerTests: XCTestCase {
         let controller = RenderController(rtcManager: rtcManager)
         let registration = try registerRemoteTrack(with: controller)
         let stream = RemoteStream(roomID: "room-id", userID: "bot-user")
-        let firstVideoView = XmaxVideoView()
-        let secondVideoView = XmaxVideoView()
+        let firstVideoView = XmaxRealtimeVideoView()
+        let secondVideoView = XmaxRealtimeVideoView()
         try controller.setRemoteStream(stream)
         try registration.binding.attach(
             to: firstVideoView,
@@ -318,7 +318,7 @@ final class RenderControllerTests: XCTestCase {
         let registration = try registerRemoteTrack(with: controller)
         addTeardownBlock { try await controller.resetRemoteTrack(registration.track) }
         let stream = RemoteStream(roomID: "room-id", userID: "bot-user")
-        let videoView = XmaxVideoView()
+        let videoView = XmaxRealtimeVideoView()
         XCTAssertThrowsError(try controller.setRemoteStream(stream)) { error in
             XCTAssertEqual(error as? XmaxError, expectedError)
         }
@@ -357,7 +357,7 @@ final class RenderControllerTests: XCTestCase {
         )
         let registration = try registerRemoteTrack(with: controller)
         addTeardownBlock { try await controller.resetRemoteTrack(registration.track) }
-        let videoView = XmaxVideoView()
+        let videoView = XmaxRealtimeVideoView()
         try registration.binding.attach(
             to: videoView,
             contentMode: .fill

@@ -17,8 +17,8 @@ final class RealtimePreviewBackdropView: UIView {
     // 媒体视图
     private let videoViewportView = UIView()
 
-    private lazy var realtimeVideoView: XmaxRealtimeVideoView = {
-        let view = XmaxRealtimeVideoView(videoContentMode: .fit)
+    private lazy var realtimeVideoView: XmaxRealtimeDualVideoView = {
+        let view = XmaxRealtimeDualVideoView(videoContentMode: .fit)
         view.trajectoryRenderer = trajectoryRenderer
         view.backgroundColor = .feed(rgb: 0x101010)
         return view

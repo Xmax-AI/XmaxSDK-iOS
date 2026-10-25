@@ -2083,7 +2083,7 @@ final class XmaxRealtimeManagerTests: XCTestCase {
         }
         let track = try XCTUnwrap(stream.videoTrack)
         let binding = try XCTUnwrap(VideoRenderRegistry.binding(for: track))
-        let view = XmaxVideoView()
+        let view = XmaxRealtimeVideoView()
         try binding.attach(to: view, contentMode: .fit)
         try components.captureManager.emitFrame(CameraControllerTests.testFrame())
         await fulfillment(of: [ready], timeout: 2)
@@ -2139,7 +2139,7 @@ final class XmaxRealtimeManagerTests: XCTestCase {
             XCTAssertEqual(initialState.connectionState, .preparing)
             let track = try XCTUnwrap(stream.videoTrack)
             let binding = try XCTUnwrap(VideoRenderRegistry.binding(for: track))
-            let view = XmaxVideoView()
+            let view = XmaxRealtimeVideoView()
             let frame = try CameraControllerTests.testFrame()
 
             if frameArrivesFirst {

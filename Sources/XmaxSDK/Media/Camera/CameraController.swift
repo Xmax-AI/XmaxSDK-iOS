@@ -476,10 +476,10 @@ private extension CameraController {
             track,
             binding: VideoRenderBinding(
                 attachHandler: { [weak self] view, contentMode in
-                    guard let videoView = view as? XmaxVideoView else {
+                    guard let videoView = view as? XmaxRealtimeVideoView else {
                         throw XmaxError(
                             code: .invalidConfiguration,
-                            message: "Camera tracks require an XmaxVideoView"
+                            message: "Camera tracks require an XmaxRealtimeVideoView"
                         )
                     }
 
@@ -494,7 +494,7 @@ private extension CameraController {
                     self?.notifyPreviewReady(for: track)
                 },
                 detachHandler: { [weak self] view in
-                    if let videoView = view as? XmaxVideoView {
+                    if let videoView = view as? XmaxRealtimeVideoView {
                         presenter.detach(from: videoView)
                     }
                     self?.stateLock.withLock {

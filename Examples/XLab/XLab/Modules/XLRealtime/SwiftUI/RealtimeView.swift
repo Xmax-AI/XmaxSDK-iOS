@@ -50,7 +50,7 @@ struct RealtimeView: View {
     var body: some View {
         ZStack(alignment: .top) {
             GeometryReader { geometry in
-                XmaxRealtimeVideo(
+                XmaxRealtimeDualVideo(
                     localTrack: realtimeSession.localVideoTrack,
                     remoteTrack: realtimeSession.remoteVideoTrack,
                     videoContentMode: cameraVideoContentMode

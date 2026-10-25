@@ -152,10 +152,10 @@ final class ExternalVideoController: ExternalVideoControlling, @unchecked Sendab
                 track,
                 binding: VideoRenderBinding(
                     attachHandler: { view, contentMode in
-                        guard let view = view as? XmaxVideoView else {
+                        guard let view = view as? XmaxRealtimeVideoView else {
                             throw XmaxError(
                                 code: .invalidConfiguration,
-                                message: "External video tracks require an XmaxVideoView"
+                                message: "External video tracks require an XmaxRealtimeVideoView"
                             )
                         }
                         presenter.attach(
@@ -164,7 +164,7 @@ final class ExternalVideoController: ExternalVideoControlling, @unchecked Sendab
                         )
                     },
                     detachHandler: { view in
-                        if let view = view as? XmaxVideoView {
+                        if let view = view as? XmaxRealtimeVideoView {
                             presenter.detach(from: view)
                         }
                     }

@@ -10,15 +10,12 @@
 
 import SwiftUI
 
-/// A SwiftUI view switching between local preview and remote generation.
+/// A SwiftUI view displaying a single local or remote video track.
 @MainActor
 public struct XmaxRealtimeVideo: UIViewRepresentable {
 
-    /// The local preview track.
-    public let localTrack: RealtimeVideoTrack?
-
-    /// The remote generation track.
-    public let remoteTrack: RealtimeVideoTrack?
+    /// The displayed track, or `nil` for an empty container.
+    public let track: RealtimeVideoTrack?
 
     /// The video content mode.
     public let videoContentMode: VideoContentMode
@@ -26,15 +23,13 @@ public struct XmaxRealtimeVideo: UIViewRepresentable {
     /// Whether remote trajectory interaction is enabled.
     public let isInteractionEnabled: Bool
 
-    /// Creates a SwiftUI realtime video view.
+    /// Creates a single-track realtime video view.
     public init(
-        localTrack: RealtimeVideoTrack?,
-        remoteTrack: RealtimeVideoTrack?,
+        track: RealtimeVideoTrack?,
         videoContentMode: VideoContentMode = .fill,
         isInteractionEnabled: Bool = true
     ) {
-        self.localTrack = localTrack
-        self.remoteTrack = remoteTrack
+        self.track = track
         self.videoContentMode = videoContentMode
         self.isInteractionEnabled = isInteractionEnabled
     }
@@ -43,16 +38,16 @@ public struct XmaxRealtimeVideo: UIViewRepresentable {
     ///
     /// - Parameter context: The SwiftUI view creation context.
     ///
-    /// - Returns: The realtime video view configured with local and remote tracks.
+    /// - Returns: The SDK view configured for the current track.
     public func makeUIView(
         context: Context
     ) -> XmaxRealtimeVideoView {
-        XmaxRealtimeVideoView(
-            localTrack: localTrack,
-            remoteTrack: remoteTrack,
+        let view = XmaxRealtimeVideoView(
+            track: track,
             videoContentMode: videoContentMode,
             isInteractionEnabled: isInteractionEnabled
         )
+        return view
     }
 
     /// Updates the UIKit view's tracks and display settings.
@@ -66,8 +61,7 @@ public struct XmaxRealtimeVideo: UIViewRepresentable {
     ) {
         view.videoContentMode = videoContentMode
         view.isInteractionEnabled = isInteractionEnabled
-        view.localTrack = localTrack
-        view.remoteTrack = remoteTrack
+        view.track = track
     }
 
     /// Detaches video tracks when SwiftUI removes the view.
@@ -79,7 +73,6 @@ public struct XmaxRealtimeVideo: UIViewRepresentable {
         _ view: XmaxRealtimeVideoView,
         coordinator: Void
     ) {
-        view.localTrack = nil
-        view.remoteTrack = nil
+        view.track = nil
     }
 }

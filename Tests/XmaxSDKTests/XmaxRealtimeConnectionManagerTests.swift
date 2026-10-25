@@ -82,7 +82,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
             isCurrent: { true },
             onHeartbeatFailure: { _, _ in }
         )
-        let view = XmaxVideoView(
+        let view = XmaxRealtimeVideoView(
             track: stream.videoTrack,
             videoContentMode: .fit
         )

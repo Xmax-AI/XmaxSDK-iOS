@@ -1,5 +1,5 @@
 //
-//  XmaxVideo.swift
+//  XmaxRealtimeDualVideo.swift
 //  XmaxSDK
 //
 //  Author: 翁跃庭 (Yueting Weng)
@@ -10,27 +10,37 @@
 
 import SwiftUI
 
-/// A SwiftUI view displaying a local or remote video track.
+/// A SwiftUI view that overlays local and remote video tracks and switches between them.
 @MainActor
-public struct XmaxVideo: UIViewRepresentable {
+public struct XmaxRealtimeDualVideo: UIViewRepresentable {
 
-    /// The displayed track, or `nil` for an empty container.
-    public let track: RealtimeVideoTrack?
+    /// The local preview track.
+    public let localTrack: RealtimeVideoTrack?
+
+    /// The remote generation track.
+    public let remoteTrack: RealtimeVideoTrack?
 
     /// The video content mode.
     public let videoContentMode: VideoContentMode
 
+    /// The remote video's fade-in duration, in seconds. The default is 0.3; zero disables animation.
+    public let remoteVideoFadeInDuration: TimeInterval
+
     /// Whether remote trajectory interaction is enabled.
     public let isInteractionEnabled: Bool
 
-    /// Creates a SwiftUI video view.
+    /// Creates a dual-track realtime video view.
     public init(
-        track: RealtimeVideoTrack?,
+        localTrack: RealtimeVideoTrack?,
+        remoteTrack: RealtimeVideoTrack?,
         videoContentMode: VideoContentMode = .fill,
+        remoteVideoFadeInDuration: TimeInterval = 0.3,
         isInteractionEnabled: Bool = true
     ) {
-        self.track = track
+        self.localTrack = localTrack
+        self.remoteTrack = remoteTrack
         self.videoContentMode = videoContentMode
+        self.remoteVideoFadeInDuration = remoteVideoFadeInDuration
         self.isInteractionEnabled = isInteractionEnabled
     }
 
@@ -38,16 +48,17 @@ public struct XmaxVideo: UIViewRepresentable {
     ///
     /// - Parameter context: The SwiftUI view creation context.
     ///
-    /// - Returns: The SDK view configured for the current track.
+    /// - Returns: The realtime video view configured with local and remote tracks.
     public func makeUIView(
         context: Context
-    ) -> XmaxVideoView {
-        let view = XmaxVideoView(
-            track: track,
+    ) -> XmaxRealtimeDualVideoView {
+        XmaxRealtimeDualVideoView(
+            localTrack: localTrack,
+            remoteTrack: remoteTrack,
             videoContentMode: videoContentMode,
+            remoteVideoFadeInDuration: remoteVideoFadeInDuration,
             isInteractionEnabled: isInteractionEnabled
         )
-        return view
     }
 
     /// Updates the UIKit view's tracks and display settings.
@@ -56,12 +67,14 @@ public struct XmaxVideo: UIViewRepresentable {
     ///   - view: The SDK video view to update.
     ///   - context: The SwiftUI view update context.
     public func updateUIView(
-        _ view: XmaxVideoView,
+        _ view: XmaxRealtimeDualVideoView,
         context: Context
     ) {
         view.videoContentMode = videoContentMode
+        view.remoteVideoFadeInDuration = remoteVideoFadeInDuration
         view.isInteractionEnabled = isInteractionEnabled
-        view.track = track
+        view.localTrack = localTrack
+        view.remoteTrack = remoteTrack
     }
 
     /// Detaches video tracks when SwiftUI removes the view.
@@ -70,9 +83,10 @@ public struct XmaxVideo: UIViewRepresentable {
     ///   - view: The SDK view being removed.
     ///   - coordinator: The SwiftUI coordinator, with no additional state.
     public static func dismantleUIView(
-        _ view: XmaxVideoView,
+        _ view: XmaxRealtimeDualVideoView,
         coordinator: Void
     ) {
-        view.track = nil
+        view.localTrack = nil
+        view.remoteTrack = nil
     }
 }

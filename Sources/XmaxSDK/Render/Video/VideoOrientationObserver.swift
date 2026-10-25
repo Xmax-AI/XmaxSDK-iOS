@@ -15,7 +15,7 @@ import UIKit
 final class VideoOrientationObserver: UIViewController {
 
     /// The video view receiving window orientation changes.
-    private weak var videoView: XmaxVideoView?
+    private weak var videoView: XmaxRealtimeVideoView?
 
     /// The physical device orientation provider.
     private let deviceOrientation: () -> UIDeviceOrientation
@@ -32,7 +32,7 @@ final class VideoOrientationObserver: UIViewController {
     ///   - videoView: The video view receiving early orientation updates.
     ///   - deviceOrientation: The physical device orientation provider.
     init(
-        videoView: XmaxVideoView,
+        videoView: XmaxRealtimeVideoView,
         deviceOrientation: @escaping () -> UIDeviceOrientation = {
             UIDevice.current.orientation
         }

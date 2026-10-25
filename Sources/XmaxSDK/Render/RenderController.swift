@@ -91,7 +91,7 @@ final class RenderController: RenderControlling {
     private var activeRemoteFrameStream: RemoteStream?
 
     /// The attached remote video view.
-    private weak var remoteView: XmaxVideoView?
+    private weak var remoteView: XmaxRealtimeVideoView?
 
     /// The remote video content mode.
     private var remoteContentMode = VideoContentMode.fill
@@ -357,7 +357,7 @@ private extension RenderController {
     /// Attaches a remote video view and submits a cached valid frame.
     ///
     /// - Parameters:
-    ///   - view: The `XmaxVideoView` displaying remote video.
+    ///   - view: The `XmaxRealtimeVideoView` displaying remote video.
     ///   - contentMode: The remote video content mode.
     ///
     /// - Throws: An error if the view type is invalid or remote frame listening fails.
@@ -365,10 +365,10 @@ private extension RenderController {
         to view: UIView,
         contentMode: VideoContentMode
     ) throws {
-        guard let videoView = view as? XmaxVideoView else {
+        guard let videoView = view as? XmaxRealtimeVideoView else {
             throw XmaxError(
                 code: .invalidConfiguration,
-                message: "Remote tracks require an XmaxVideoView"
+                message: "Remote tracks require an XmaxRealtimeVideoView"
             )
         }
         if let remoteView, remoteView !== videoView,
