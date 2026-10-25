@@ -12,5 +12,5 @@
 public enum XmaxSDKInfo {
 
     /// The SDK semantic version.
-    public static let version = "1.0.14"
+    public static let version = "1.0.15"
 }
