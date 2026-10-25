@@ -24,6 +24,7 @@ final class RoomEventTests: XCTestCase {
         XCTAssertEqual(params["size"] as? [Int], [1024, 1920])
         XCTAssertEqual(params["target_size"] as? [Int], [864, 1536])
         XCTAssertEqual(params["padding"] as? String, "contain")
+        XCTAssertEqual(params["min_bitrate"] as? Int, 500)
         let budget = try EncodingBitratePolicy.resolve(RealtimeVideoFormat(width: 864, height: 1536, fps: 24))
         XCTAssertEqual(params["max_bitrate"] as? Int, min(10000, budget.maximum))
 
@@ -72,9 +73,32 @@ final class RoomEventTests: XCTestCase {
         XCTAssertEqual(event["uid"] as? String, "task-id")
         let params = try XCTUnwrap(event["params"] as? [String: Any])
         XCTAssertEqual(Set(params.keys), ["target_size", "min_bitrate", "max_bitrate"])
-        XCTAssertEqual(params["min_bitrate"] as? Int, 100)
+        XCTAssertEqual(params["min_bitrate"] as? Int, 500)
         XCTAssertEqual(params["target_size"] as? [Int], [676, 1196])
         try assertRuntime(in: event)
+    }
+
+    func testDownlinkBitratesStayOrderedAcrossOutputSizes() throws {
+        let canvas = RealtimeVideoFormat(width: 1024, height: 1920, fps: 30)
+        for (width, height) in [(224, 224), (448, 448), (676, 1196), (1920, 1080), (3840, 2160)] {
+            let size = CGSize(width: width, height: height)
+            let budget = try EncodingBitratePolicy.resolve(
+                RealtimeVideoFormat(width: width, height: height, fps: 24)
+            )
+            let messages = try [
+                RoomEvent.start(
+                    userID: "user", taskID: "task", videoFormat: canvas,
+                    targetSize: size, context: RealtimeContext(prompt: "test")
+                ),
+                RoomEvent.changeTargetSize(userID: "user", taskID: "task", targetSize: size)
+            ]
+            for message in messages {
+                let event = try decode(message)
+                let params = try XCTUnwrap(event["params"] as? [String: Any])
+                XCTAssertEqual(params["min_bitrate"] as? Int, 500)
+                XCTAssertEqual(params["max_bitrate"] as? Int, min(10000, max(500, budget.maximum)))
+            }
+        }
     }
 
     func testStartAndChangeConditionSeparateGenerationAndReturnSizes() throws {

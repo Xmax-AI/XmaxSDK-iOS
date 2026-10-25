@@ -207,10 +207,10 @@ private extension RoomEvent {
             )
         )
         return (
-            100,
+            500,
             min(
                 10000,
-                budget.maximum
+                max(500, budget.maximum)
             )
         )
     }
