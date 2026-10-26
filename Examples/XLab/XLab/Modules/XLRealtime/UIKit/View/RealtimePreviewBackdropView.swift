@@ -79,8 +79,7 @@ final class RealtimePreviewBackdropView: UIView {
             realtimeVideoView.videoContentMode = .fit
             return
         }
-        let fillsViewport = (format.width == 1920 && format.height == 1080) ||
-            (format.width == 1080 && format.height == 1920)
+        let fillsViewport = format.width == 1080 && format.height == 1920
         realtimeVideoView.videoContentMode = fillsViewport ? .fill : .fit
     }
 

@@ -42,8 +42,7 @@ struct RealtimeView: View {
 
     private var cameraVideoContentMode: VideoContentMode {
         guard let format = realtimeSession.localVideoTrack?.videoFormat else { return .fit }
-        let fillsViewport = (format.width == 1920 && format.height == 1080) ||
-            (format.width == 1080 && format.height == 1920)
+        let fillsViewport = format.width == 1080 && format.height == 1920
         return fillsViewport ? .fill : .fit
     }
 
