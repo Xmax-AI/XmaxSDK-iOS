@@ -217,6 +217,34 @@ private extension RealtimeView {
                         : XLLocalization.text("realtime.interpolation.enable")
                 )
 
+                Menu {
+                    ForEach(Array(realtimeSession.supportedCameraFormats.enumerated()), id: \.offset) { _, format in
+                        Button {
+                            realtimeSession.updateCameraFormat(format)
+                        } label: {
+                            let current = realtimeSession.localVideoTrack?.videoFormat
+                            let title = "\(format.width) × \(format.height)"
+                            if current?.width == format.width && current?.height == format.height {
+                                Label(title, systemImage: "checkmark")
+                            } else {
+                                Text(title)
+                            }
+                        }
+                    }
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: "aspectratio")
+                            .resizable().scaledToFit().frame(width: 22, height: 22)
+                        Text(XLLocalization.text("realtime.camera.format"))
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .disabled(realtimeSession.connectionState != .ready || realtimeSession.isCameraFormatUpdating)
+                .opacity(realtimeSession.connectionState == .ready && !realtimeSession.isCameraFormatUpdating ? 1 : 0.4)
+
                 RealtimeActionButton(
                     title: XLLocalization.text("statistics.title"),
                     image: Image(systemName: "chart.bar.fill"),
@@ -229,7 +257,7 @@ private extension RealtimeView {
                     XLLocalization.text(isStatisticsVisible ? "common.enabled" : "common.disabled")
                 )
             }
-            .frame(width: 58, height: 186)
+            .frame(width: 58, height: 248)
         }
         .padding(.leading, 12)
         .padding(.trailing, 8)

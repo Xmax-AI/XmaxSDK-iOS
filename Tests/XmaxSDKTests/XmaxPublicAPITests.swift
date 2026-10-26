@@ -36,19 +36,19 @@ final class XmaxPublicAPITests: XCTestCase {
 
         let manager: any XmaxRealtimeManaging = client.createRealtimeManager(
             options: RealtimeConfiguration(
-                model: .x2_1_1_preview_cn,
+                model: .x2_1,
                 isFrameInterpolationEnabled: true
             )
         )
 
-        XCTAssertEqual(manager.options.model, .x2_1_1_preview_cn)
+        XCTAssertEqual(manager.options.model, .x2_1)
         XCTAssertTrue(manager.options.isFrameInterpolationEnabled)
     }
 
     @MainActor
     func testPublicRemoteMediaListenerIsAvailable() async throws {
         let manager = XmaxClient(configuration: XmaxConfiguration(apiKey: "test-key"))
-            .createRealtimeManager(options: RealtimeConfiguration(model: .x2_1_1_preview_cn))
+            .createRealtimeManager(options: RealtimeConfiguration(model: .x2_1))
         let listener: RealtimeMediaFrameListener = { event in
             _ = event.streamID
             _ = event.isDiscontinuous

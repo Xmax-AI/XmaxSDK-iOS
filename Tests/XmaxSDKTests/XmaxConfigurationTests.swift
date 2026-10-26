@@ -70,15 +70,15 @@ final class XmaxConfigurationTests: XCTestCase {
     }
 
     func testRealtimeConfigurationKeepsModelAndEnablesInterpolationByDefault() {
-        let configuration = RealtimeConfiguration(model: .x2_1_1_preview_cn)
+        let configuration = RealtimeConfiguration(model: .x2_1)
 
-        XCTAssertEqual(configuration.model.rawValue, "x2.1.1-preview-cn")
+        XCTAssertEqual(configuration.model.rawValue, "x2.1")
         XCTAssertTrue(configuration.isFrameInterpolationEnabled)
         XCTAssertTrue(configuration.isAdaptiveQualityEnabled)
     }
 
     func testRealtimeConfigurationCanDisableAdaptiveQuality() {
-        let configuration = RealtimeConfiguration(model: .x2_1_1_preview_cn, isAdaptiveQualityEnabled: false)
+        let configuration = RealtimeConfiguration(model: .x2_1, isAdaptiveQualityEnabled: false)
 
         XCTAssertFalse(configuration.isAdaptiveQualityEnabled)
         XCTAssertTrue(configuration.isFrameInterpolationEnabled)

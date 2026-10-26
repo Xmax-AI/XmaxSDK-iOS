@@ -13,14 +13,9 @@ enum RealtimePreferences {
         XLLocalization.languageCode == "zh-Hans" ? .china : .global
     }
 
-    /// 当前服务环境可选择的实时模型。
+    /// XLab 可选择的实时模型。
     static var availableModels: [RealtimeModel] {
-        switch environment {
-        case .china:
-            [.x2_1_1_preview_cn]
-        case .global:
-            [.x2_1_1_preview_us]
-        }
+        RealtimeModel.allCases
     }
 
     /// XLab 当前选择的实时生成模型。

@@ -267,7 +267,7 @@ let client = XmaxClient(
 )
 
 let realtime = client.createRealtimeManager(
-    options: RealtimeConfiguration(model: .x2_1_1_preview_cn)
+    options: RealtimeConfiguration(model: .x2_1)
 )
 
 let localStream = try await realtime.createLocalCameraStream(

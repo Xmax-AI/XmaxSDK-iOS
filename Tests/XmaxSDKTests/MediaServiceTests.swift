@@ -17,12 +17,13 @@ final class MediaServiceTests: XCTestCase {
     func testGenerationSizeSelectsBucketsByAspectRatioRatherThanExactDimensions() throws {
         let service = MediaService()
         for (mediaSize, expectedCanvas) in [
-            (CGSize(width: 1200, height: 1600), CGSize(width: 1024, height: 1920)),
-            (CGSize(width: 1280, height: 720), CGSize(width: 1920, height: 1024)),
-            (CGSize(width: 1024, height: 1920), CGSize(width: 1024, height: 1920)),
-            (CGSize(width: 1920, height: 1024), CGSize(width: 1920, height: 1024)),
-            (CGSize(width: 1200, height: 1500), CGSize(width: 1024, height: 1920)),
-            (CGSize(width: 1156, height: 1536), CGSize(width: 1024, height: 1920))
+            (CGSize(width: 1200, height: 1600), CGSize(width: 1152, height: 1536)),
+            (CGSize(width: 1280, height: 720), CGSize(width: 1920, height: 1080)),
+            (CGSize(width: 1024, height: 1920), CGSize(width: 1080, height: 1920)),
+            (CGSize(width: 1920, height: 1024), CGSize(width: 1920, height: 1080)),
+            (CGSize(width: 1200, height: 1500), CGSize(width: 1152, height: 1536)),
+            (CGSize(width: 1156, height: 1536), CGSize(width: 1152, height: 1536)),
+            (CGSize(width: 800, height: 800), CGSize(width: 1408, height: 1408))
         ] {
             XCTAssertEqual(try service.resolveGenerationSize(mediaSize), expectedCanvas)
         }
@@ -207,17 +208,17 @@ final class MediaServiceTests: XCTestCase {
     }
 
     func testBucketResolutionsArePreservedInBothOrientations() throws {
-        let service = MediaService(model: .x2_1_1_preview_cn)
+        let service = MediaService(model: .x2_1)
         for size in service.model.supportedVideoFormats.map(\.size) {
             XCTAssertEqual(try service.resolveMediaSize(size, source: .camera), size)
         }
     }
 
     func testBucketRejectsOtherSizesWithoutResizingOrRounding() {
-        let service = MediaService(model: .x2_1_1_preview_cn)
+        let service = MediaService(model: .x2_1)
         let sizes: [CGSize] = [
             CGSize(width: 832, height: 1472),
-            CGSize(width: 1080, height: 1920),
+            CGSize(width: 1024, height: 1920),
             CGSize(width: 512, height: 960),
             CGSize(width: 2048, height: 3840),
             CGSize(width: 1120, height: 1120),
@@ -234,7 +235,7 @@ final class MediaServiceTests: XCTestCase {
     }
 
     func testInterpolationTargetIsIndependentOfInputBuckets() throws {
-        let target = try MediaService(model: .x2_1_1_preview_cn).resolveTargetSize(
+        let target = try MediaService(model: .x2_1).resolveTargetSize(
             CGSize(width: 1024, height: 1920),
             maximumSize: CGSize(width: 1024, height: 1920),
             frameInterpolationEnabled: true
@@ -331,21 +332,21 @@ final class MediaServiceTests: XCTestCase {
         }
     }
 
-    func testPreviewModelCameraBuckets() throws {
-        for model in [RealtimeModel.x2_1_1_preview_cn, .x2_1_1_preview_us] {
+    func testX21ModelCameraBuckets() throws {
+        for model in RealtimeModel.allCases {
             let service = MediaService(model: model)
-            for size in [CGSize(width: 1024, height: 1920), CGSize(width: 1920, height: 1024)] {
+            for size in model.supportedVideoFormats.map(\.size) {
                 XCTAssertEqual(try service.resolveMediaSize(size, source: .camera), size)
                 XCTAssertEqual(try service.resolveGenerationSize(size), size)
             }
-            for size in [CGSize(width: 1080, height: 1920), CGSize(width: 1920, height: 1080), CGSize(width: 1408, height: 1408)] {
+            for size in [CGSize(width: 1024, height: 1920), CGSize(width: 1920, height: 1024), CGSize(width: 1120, height: 1120)] {
                 XCTAssertThrowsError(try service.resolveMediaSize(size, source: .camera)) { error in
                     XCTAssertEqual((error as? XmaxError)?.code, .invalidConfiguration)
                 }
             }
             XCTAssertEqual(
                 try service.resolveGenerationSize(CGSize(width: 720, height: 1280)),
-                CGSize(width: 1024, height: 1920)
+                CGSize(width: 1080, height: 1920)
             )
         }
     }

@@ -13,16 +13,17 @@ import XCTest
 @testable import XmaxSDK
 
 final class RealtimeModelTests: XCTestCase {
-    func testOnlyRegionalPreviewModelsAreAvailable() {
-        XCTAssertEqual(RealtimeModel.allCases, [.x2_1_1_preview_cn, .x2_1_1_preview_us])
+    func testOnlyX21ModelIsAvailable() {
+        XCTAssertEqual(RealtimeModel.allCases, [.x2_1])
         XCTAssertNil(RealtimeModel(rawValue: "x2.0"))
-        XCTAssertNil(RealtimeModel(rawValue: "x2.1"))
+        XCTAssertNil(RealtimeModel(rawValue: "x2.1.1-preview-cn"))
+        XCTAssertNil(RealtimeModel(rawValue: "x2.1.1-preview-us"))
     }
 
-    func testPreviewModelCameraFormats() {
-        let models: [RealtimeModel] = [.x2_1_1_preview_cn, .x2_1_1_preview_us]
-        XCTAssertEqual(models.map(\.rawValue), ["x2.1.1-preview-cn", "x2.1.1-preview-us"])
-        XCTAssertEqual(models.map(\.displayName), ["X2.1.1-preview-cn", "X2.1.1-preview-us"])
+    func testX21ModelCameraFormats() {
+        let models = RealtimeModel.allCases
+        XCTAssertEqual(models.map(\.rawValue), ["x2.1"])
+        XCTAssertEqual(models.map(\.displayName), ["X2.1"])
 
         for model in models {
             XCTAssertEqual(model.defaultFrameRate, 30)
@@ -31,11 +32,14 @@ final class RealtimeModelTests: XCTestCase {
             XCTAssertEqual(model.inputSizeAlignment, 32)
             XCTAssertEqual(
                 model.defaultCameraVideoFormat,
-                RealtimeVideoFormat(width: 1024, height: 1920, fps: 30)
+                RealtimeVideoFormat(width: 1080, height: 1920, fps: 30)
             )
             XCTAssertEqual(model.supportedVideoFormats, [
-                RealtimeVideoFormat(width: 1024, height: 1920, fps: 30),
-                RealtimeVideoFormat(width: 1920, height: 1024, fps: 30)
+                RealtimeVideoFormat(width: 1920, height: 1080, fps: 30),
+                RealtimeVideoFormat(width: 1080, height: 1920, fps: 30),
+                RealtimeVideoFormat(width: 1408, height: 1408, fps: 30),
+                RealtimeVideoFormat(width: 1152, height: 1536, fps: 30),
+                RealtimeVideoFormat(width: 1536, height: 1152, fps: 30)
             ])
         }
     }
@@ -109,7 +113,7 @@ final class RealtimeModelTests: XCTestCase {
     }
 
     func testRealtimeEnumRawValuesMatchCrossPlatformContract() {
-        XCTAssertEqual(RealtimeModel.x2_1_1_preview_cn.rawValue, "x2.1.1-preview-cn")
+        XCTAssertEqual(RealtimeModel.x2_1.rawValue, "x2.1")
         XCTAssertEqual(RealtimeConnectionState.generating.rawValue, "Generating")
         XCTAssertEqual(RealtimeNetworkQualityLevel.veryBad.rawValue, "VeryBad")
         XCTAssertEqual(RealtimePerformanceStatus.recovered.rawValue, "Recovered")

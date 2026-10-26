@@ -265,7 +265,7 @@ final class EncodingControllerTests: XCTestCase {
         let rtcManager = RtcManagingStub()
         let controller = EncodingController(rtcManager: rtcManager)
         let baseline = RealtimeVideoFormat(width: 1024, height: 1920, fps: 30)
-        let minimum = RealtimeModel.x2_1_1_preview_cn.minimumInputPixels
+        let minimum = RealtimeModel.x2_1.minimumInputPixels
 
         for level in RealtimeQualityLevel.allCases {
             let format = QualityVideoFormat.resolve(

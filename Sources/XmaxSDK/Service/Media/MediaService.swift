@@ -22,7 +22,7 @@ final class MediaService: MediaServicing, Sendable {
 
     /// Creates a media service for a model.
     init(
-        model: RealtimeModel = .x2_1_1_preview_cn
+        model: RealtimeModel = .x2_1
     ) {
         self.model = model
     }

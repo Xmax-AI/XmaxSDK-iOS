@@ -55,7 +55,7 @@ final class ExternalVideoControllerTests: XCTestCase {
         XCTAssertEqual(resolved.fps, 60)
         XCTAssertEqual(resolved.minimumBitrate, 600)
         XCTAssertEqual(resolved.maximumBitrate, 3000)
-        XCTAssertLessThanOrEqual(resolved.width * resolved.height, RealtimeModel.x2_1_1_preview_cn.maximumInputPixels)
+        XCTAssertLessThanOrEqual(resolved.width * resolved.height, RealtimeModel.x2_1.maximumInputPixels)
         XCTAssertEqual(resolved.width % 4, 0)
         XCTAssertEqual(resolved.height % 4, 0)
         XCTAssertEqual(stream.videoTrack?.videoFormat, resolved)

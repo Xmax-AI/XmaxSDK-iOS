@@ -29,7 +29,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
         )
 
         let stream = try await components.manager.connect(
-            model: .x2_1_1_preview_cn,
+            model: .x2_1,
             videoFormat: format,
             includeLocalAudio: true,
             isCurrent: { true },
@@ -58,7 +58,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
         XCTAssertEqual(
             sessionService.calls,
             [
-                .createSession(.x2_1_1_preview_cn),
+                .createSession(.x2_1),
                 .startHeartbeat("session-id")
             ]
         )
@@ -76,7 +76,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
             sessionService: RealtimeSessionServicingStub(session: session)
         )
         let stream = try await components.manager.connect(
-            model: .x2_1_1_preview_cn,
+            model: .x2_1,
             videoFormat: videoFormat,
             includeLocalAudio: false,
             isCurrent: { true },
@@ -120,7 +120,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
             sessionService: sessionService
         )
         let stream = try await components.manager.connect(
-            model: .x2_1_1_preview_cn,
+            model: .x2_1,
             videoFormat: videoFormat,
             includeLocalAudio: true,
             isCurrent: { true },
@@ -138,7 +138,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
         XCTAssertEqual(
             sessionService.calls,
             [
-                .createSession(.x2_1_1_preview_cn),
+                .createSession(.x2_1),
                 .startHeartbeat("session-id"),
                 .stopHeartbeat,
                 .closeSession("session-id")
@@ -166,7 +166,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
 
         do {
             _ = try await components.manager.connect(
-                model: .x2_1_1_preview_cn,
+                model: .x2_1,
                 videoFormat: videoFormat,
                 targetSize: CGSize(width: 702, height: 1242),
                 includeLocalAudio: false,
@@ -187,7 +187,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
         XCTAssertEqual(
             sessionService.calls,
             [
-                .createSession(.x2_1_1_preview_cn),
+                .createSession(.x2_1),
                 .stopHeartbeat,
                 .closeSession("session-id")
             ]
@@ -218,7 +218,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
 
         do {
             _ = try await components.manager.connect(
-                model: .x2_1_1_preview_cn,
+                model: .x2_1,
                 videoFormat: videoFormat,
                 includeLocalAudio: false,
                 isCurrent: { false },
@@ -239,7 +239,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
         XCTAssertEqual(
             sessionService.calls,
             [
-                .createSession(.x2_1_1_preview_cn),
+                .createSession(.x2_1),
                 .closeSession("session-id")
             ]
         )
@@ -250,7 +250,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
             sessionService: RealtimeSessionServicingStub(session: session)
         )
         let stream = try await components.manager.connect(
-            model: .x2_1_1_preview_cn,
+            model: .x2_1,
             videoFormat: videoFormat,
             targetSize: CGSize(width: 1024, height: 1920),
             includeLocalAudio: false,
@@ -280,7 +280,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
             sessionService: RealtimeSessionServicingStub(session: session)
         )
         let stream = try await components.manager.connect(
-            model: .x2_1_1_preview_cn,
+            model: .x2_1,
             videoFormat: videoFormat,
             includeLocalAudio: false,
             isCurrent: { true },

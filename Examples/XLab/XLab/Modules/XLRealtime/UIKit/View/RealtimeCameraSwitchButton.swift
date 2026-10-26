@@ -18,7 +18,6 @@ final class RealtimeCameraActionBar: UIView {
             title: XLLocalization.text("realtime.camera.format"),
             image: UIImage(systemName: "aspectratio")
         )
-        button.isHidden = true
         button.isEnabled = false
         button.alpha = 0.4
         button.addTarget(self, action: #selector(openCameraFormat), for: .touchUpInside)
