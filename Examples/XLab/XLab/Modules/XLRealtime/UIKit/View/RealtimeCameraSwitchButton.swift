@@ -103,7 +103,7 @@ final class RealtimeCameraActionBar: UIView {
         stackView.axis = .vertical
         stackView.alignment = .fill
         stackView.distribution = .fillEqually
-        stackView.spacing = 0
+        stackView.spacing = 12
         return stackView
     }()
 

@@ -41,4 +41,15 @@ enum RealtimePreferences {
     static var cameraVideoFormat: RealtimeVideoFormat {
         selectedModel.defaultCameraVideoFormat
     }
+
+    /// 将摄像头规格显示为最简宽高比。
+    static func cameraAspectRatioLabel(for format: RealtimeVideoFormat) -> String {
+        var divisor = format.width
+        var remainder = format.height
+        while remainder != 0 {
+            (divisor, remainder) = (remainder, divisor % remainder)
+        }
+        divisor = max(divisor, 1)
+        return "\(format.width / divisor):\(format.height / divisor)"
+    }
 }

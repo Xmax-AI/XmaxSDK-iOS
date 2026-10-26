@@ -593,7 +593,7 @@ final class RealtimeViewController: UIViewController, UIGestureRecognizerDelegat
             make.top.equalTo(view.safeAreaLayoutGuide).offset(6)
             make.trailing.equalToSuperview().inset(8)
             make.width.equalTo(58)
-            make.height.equalTo(248).priority(750)
+            make.height.equalTo(296).priority(750)
             make.bottom.lessThanOrEqualTo(view.safeAreaLayoutGuide).offset(-94)
         }
         mediaTopBar.snp.makeConstraints { make in
@@ -1132,7 +1132,7 @@ final class RealtimeViewController: UIViewController, UIGestureRecognizerDelegat
         )
         for format in realtimeManager.options.model.supportedVideoFormats {
             let selected = current?.width == format.width && current?.height == format.height
-            let title = "\(format.width) × \(format.height)" + (selected ? " ✓" : "")
+            let title = RealtimePreferences.cameraAspectRatioLabel(for: format) + (selected ? " ✓" : "")
             menu.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
                 self?.updateCameraFormat(format)
             })

@@ -181,7 +181,7 @@ private extension RealtimeView {
 
             Spacer()
 
-            VStack(spacing: 0) {
+            VStack(spacing: 12) {
                 RealtimeActionButton(
                     title: XLLocalization.text("realtime.flip"),
                     image: Image("realtime_camera_rotate"),
@@ -223,7 +223,7 @@ private extension RealtimeView {
                             realtimeSession.updateCameraFormat(format)
                         } label: {
                             let current = realtimeSession.localVideoTrack?.videoFormat
-                            let title = "\(format.width) × \(format.height)"
+                            let title = RealtimePreferences.cameraAspectRatioLabel(for: format)
                             if current?.width == format.width && current?.height == format.height {
                                 Label(title, systemImage: "checkmark")
                             } else {
@@ -257,7 +257,7 @@ private extension RealtimeView {
                     XLLocalization.text(isStatisticsVisible ? "common.enabled" : "common.disabled")
                 )
             }
-            .frame(width: 58, height: 248)
+            .frame(width: 58, height: 284)
         }
         .padding(.leading, 12)
         .padding(.trailing, 8)
