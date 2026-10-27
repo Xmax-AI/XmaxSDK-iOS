@@ -7,10 +7,10 @@ PODS:
   - QCloudCOSXML/Transfer (6.5.7):
     - QCloudCore/WithoutMTA (= 6.5.7)
   - SnapKit (5.7.1)
-  - XmaxSDK (1.0.15):
+  - XmaxSDK (1.1.0):
     - AgoraRtcEngine_iOS/RtcBasic (= 4.6.4)
     - QCloudCOSXML/Transfer (= 6.5.7)
-  - XmaxSDK/Tests (1.0.15):
+  - XmaxSDK/Tests (1.1.0):
     - AgoraRtcEngine_iOS/RtcBasic (= 4.6.4)
     - QCloudCOSXML/Transfer (= 6.5.7)
 
@@ -40,7 +40,7 @@ SPEC CHECKSUMS:
   QCloudCore: ff21b867b51f1d7e043c5013a3f876cd29bdca63
   QCloudCOSXML: 35ef870a55a58d193eeb62c37c8904630740480e
   SnapKit: d612e99e678a2d3b95bf60b0705ed0a35c03484a
-  XmaxSDK: eca9cf9a5e70c91e7bb5370d27c7c48e974ceba4
+  XmaxSDK: 7645332c40885556195466605d7f27cc0cab8535
 
 PODFILE CHECKSUM: 93f049c18f35e1772c7ff09d1d75bbb3437eddae
 
