@@ -150,6 +150,14 @@ actor RoomCommandController {
         }
         do {
             try command.ensureCurrent()
+            XmaxLogger.room.info(
+                message: "接收房间信令 (Inbound Room Signaling)\n"
+                    + "├─ \(XmaxLogger.localized("类型：", "Type: "))xid_ack\n"
+                    + "├─ \(XmaxLogger.localized("命令：", "Command: "))\(command.kind.rawValue)\n"
+                    + "├─ xid: \(command.xid)\n"
+                    + "├─ count: \(count)\n"
+                    + "└─ \(XmaxLogger.localized("发送次数：", "Attempts: "))\(command.attempts)"
+            )
             stopRetries(command)
         } catch {
             cancelCommand(command, error: error)

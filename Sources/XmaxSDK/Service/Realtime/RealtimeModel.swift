@@ -20,6 +20,9 @@ public enum RealtimeModel: String, CaseIterable, Sendable {
     /// The X2.1 TRTC model, sharing X2.1 media settings. Select the RTC provider separately.
     case x2_1_trtc = "x2.1-trtc"
 
+    /// A temporary X2.1 model routed to the internal development session service.
+    case x2_1_debug = "x2.1-debug"
+
     /// The model's display name.
     public var displayName: String {
         switch self {
@@ -27,6 +30,18 @@ public enum RealtimeModel: String, CaseIterable, Sendable {
             "X2.1"
         case .x2_1_trtc:
             "X2.1 TRTC"
+        case .x2_1_debug:
+            "X2.1 Debug"
+        }
+    }
+
+    /// Overrides the regional session endpoint only for the temporary development model.
+    var sessionApiBaseURL: URL? {
+        switch self {
+        case .x2_1, .x2_1_trtc:
+            nil
+        case .x2_1_debug:
+            URL(string: "https://dev.22duck.cn/open/api/v1")!
         }
     }
 

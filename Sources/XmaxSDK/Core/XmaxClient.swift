@@ -47,7 +47,7 @@ public final class XmaxClient: Sendable {
             options: options,
             apiService: ApiService(
                 apiKey: configuration.apiKey,
-                baseURL: configuration.environment.realtimeApiBaseURL
+                baseURL: options.model.sessionApiBaseURL ?? configuration.environment.realtimeApiBaseURL
             )
         )
     }
