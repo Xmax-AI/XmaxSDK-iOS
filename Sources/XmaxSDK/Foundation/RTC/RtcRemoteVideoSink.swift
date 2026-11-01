@@ -19,17 +19,8 @@ final class RtcRemoteVideoSink: NSObject, AgoraVideoFrameDelegate, @unchecked Se
     /// The handler receiving a numeric UID, channel, and SDK-owned buffer.
     private let frameListener: @Sendable (UInt, String, RealtimeVideoFrame) -> Void
 
-    /// The lock protecting the remote pixel buffer pool.
-    private let lock = NSLock()
-
-    /// The reusable remote frame buffer pool.
-    private var pool: CVPixelBufferPool?
-
-    /// The current pool dimensions, in pixels.
-    private var dimensions = CGSize.zero
-
-    /// The current pool pixel format.
-    private var pixelFormat: OSType = 0
+    /// Owns copied output buffers independently of native callback storage.
+    private let copier = RtcPixelBufferCopier()
 
     /// Creates a remote decoded frame receiver.
     init(
@@ -87,9 +78,7 @@ final class RtcRemoteVideoSink: NSObject, AgoraVideoFrameDelegate, @unchecked Se
         channelId: String
     ) -> Bool {
         guard let source = frame.pixelBuffer,
-            let buffer = lock.withLock({
-                copy(source)
-            })
+            let buffer = copier.copy(source)
         else {
             return true
         }
@@ -108,128 +97,4 @@ final class RtcRemoteVideoSink: NSObject, AgoraVideoFrameDelegate, @unchecked Se
         return true
     }
 
-    /// Copies biplanar pixels and attachments into an owned buffer.
-    ///
-    /// - Parameter source: The source pixel buffer.
-    ///
-    /// - Returns: An owned copy, or `nil` if allocation fails or the layout is unsupported.
-    private func copy(
-        _ source: CVPixelBuffer
-    ) -> CVPixelBuffer? {
-        let width = CVPixelBufferGetWidth(source)
-        let height = CVPixelBufferGetHeight(source)
-        let size = CGSize(
-            width: width,
-            height: height
-        )
-        let format = CVPixelBufferGetPixelFormatType(source)
-        guard CVPixelBufferGetPlaneCount(source) == 2 else {
-            return nil
-        }
-
-        if pool == nil || dimensions != size || pixelFormat != format {
-            let attributes: [CFString: Any] = [
-                kCVPixelBufferWidthKey: width,
-                kCVPixelBufferHeightKey: height,
-                kCVPixelBufferPixelFormatTypeKey: CVPixelBufferGetPixelFormatType(source),
-                kCVPixelBufferIOSurfacePropertiesKey: [:],
-                kCVPixelBufferMetalCompatibilityKey: true
-            ]
-            guard
-                CVPixelBufferPoolCreate(
-                    nil,
-                    nil,
-                    attributes as CFDictionary,
-                    &pool
-                ) == kCVReturnSuccess
-            else {
-                return nil
-            }
-
-            dimensions = size
-            pixelFormat = format
-        }
-
-        guard let pool else {
-            return nil
-        }
-
-        var output: CVPixelBuffer?
-        guard
-            CVPixelBufferPoolCreatePixelBuffer(
-                nil,
-                pool,
-                &output
-            ) == kCVReturnSuccess,
-            let output
-        else {
-            return nil
-        }
-
-        CVPixelBufferLockBaseAddress(
-            source,
-            .readOnly
-        )
-        CVPixelBufferLockBaseAddress(
-            output,
-            []
-        )
-        defer {
-            CVPixelBufferUnlockBaseAddress(
-                output,
-                []
-            )
-            CVPixelBufferUnlockBaseAddress(
-                source,
-                .readOnly
-            )
-        }
-
-        for plane in 0..<CVPixelBufferGetPlaneCount(source) {
-            guard
-                let src = CVPixelBufferGetBaseAddressOfPlane(
-                    source,
-                    plane
-                ),
-                let dst = CVPixelBufferGetBaseAddressOfPlane(
-                    output,
-                    plane
-                )
-            else {
-                return nil
-            }
-
-            let srcStride = CVPixelBufferGetBytesPerRowOfPlane(
-                source,
-                plane
-            )
-            let dstStride = CVPixelBufferGetBytesPerRowOfPlane(
-                output,
-                plane
-            )
-            let bytes = min(
-                srcStride,
-                dstStride
-            )
-
-            for row
-                in 0..<CVPixelBufferGetHeightOfPlane(
-                    source,
-                    plane
-                )
-            {
-                memcpy(
-                    dst.advanced(by: row * dstStride),
-                    src.advanced(by: row * srcStride),
-                    bytes
-                )
-            }
-        }
-
-        CVBufferPropagateAttachments(
-            source,
-            output
-        )
-        return output
-    }
 }

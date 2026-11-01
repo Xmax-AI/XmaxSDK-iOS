@@ -29,6 +29,9 @@ final class RtcRoomEventBridge: NSObject, AgoraRtcEngineDelegate {
         /// A remote user joined.
         case userJoined(UInt)
 
+        /// An owned signaling packet from a numeric remote user.
+        case message(UInt, Data)
+
         /// An Agora room error and description.
         case failure(String)
 
@@ -44,6 +47,16 @@ final class RtcRoomEventBridge: NSObject, AgoraRtcEngineDelegate {
 
     /// The converted event handler.
     private let handler: @Sendable (Event) -> Void
+
+    /// Forwards a native data-stream message without interpreting its business protocol.
+    func rtcEngine(
+        _ engine: AgoraRtcEngineKit,
+        receiveStreamMessageFromUid uid: UInt,
+        streamId: Int,
+        data: Data
+    ) {
+        handler(.message(uid, data))
+    }
 
     /// Creates a room event bridge.
     init(

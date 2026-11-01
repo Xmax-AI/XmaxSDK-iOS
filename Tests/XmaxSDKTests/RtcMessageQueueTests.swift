@@ -280,3 +280,169 @@ private final class PacketRecorder: @unchecked Sendable {
         lock.withLock { values.append(data) }
     }
 }
+
+extension RtcMessageQueueTests {
+    func testTRTCFragmentsUseServerProtocolAndPreserveUnicode() throws {
+        let message = String(repeating: "换装🙂\\\"\n", count: 250)
+        let packets = try RtcMessageCodec.encode(message, provider: .trtc)
+        var result = ""
+        var eventID: String?
+        for (index, packet) in packets.enumerated() {
+            XCTAssertLessThanOrEqual(packet.count, 1000)
+            let value = try XCTUnwrap(JSONSerialization.jsonObject(with: packet) as? [String: Any])
+            XCTAssertEqual(value["event"] as? String, "__trtc_chunk__")
+            XCTAssertEqual(value["index"] as? Int, index)
+            XCTAssertEqual(value["count"] as? Int, packets.count)
+            let current = try XCTUnwrap(value["eventId"] as? String)
+            if let eventID { XCTAssertEqual(current, eventID) }
+            eventID = current
+            result += try XCTUnwrap(value["data"] as? String)
+        }
+        XCTAssertEqual(result, message)
+    }
+
+    func testTRTCQueueRespectsConservativeByteQuota() async throws {
+        let recorder = PacketRecorder()
+        let queue = RtcMessageQueue(provider: .trtc, send: recorder.append, onFailure: { _ in XCTFail() })
+        defer { queue.close() }
+        let start = DispatchTime.now().uptimeNanoseconds
+        for _ in 0..<10 { try queue.enqueue(String(repeating: "a", count: 800)) }
+        try await queue.flush()
+        XCTAssertGreaterThanOrEqual(DispatchTime.now().uptimeNanoseconds - start, 1_000_000_000)
+        XCTAssertEqual(recorder.packets.count, 10)
+    }
+}
+
+extension RtcMessageQueueTests {
+    func testTRTCStartWaitsForExpectedRecipientWithoutRequiringVideoPublication() async throws {
+        let readiness = TrtcSignalingReadiness()
+        readiness.expectUser("bot")
+        let waiting = expectation(description: "start reached recipient wait")
+        let recorder = PacketRecorder()
+        let queue = RtcMessageQueue(
+            provider: .trtc,
+            beforeSend: {
+                if !readiness.isReady { waiting.fulfill() }
+                try await readiness.waitUntilReady()
+            },
+            send: recorder.append,
+            onFailure: { _ in XCTFail("Recipient startup delay must not fail signaling") }
+        )
+        defer { queue.close(); readiness.close() }
+        let start = try queue.enqueue("start")
+        await fulfillment(of: [waiting], timeout: 1)
+        XCTAssertTrue(recorder.packets.isEmpty)
+        readiness.setUserPresent("unrelated-user", present: true)
+        XCTAssertFalse(readiness.isReady)
+        XCTAssertTrue(recorder.packets.isEmpty)
+        readiness.setUserPresent("bot", present: true)
+        try await start.value
+        XCTAssertEqual(recorder.packets, [Data("start".utf8)])
+    }
+
+    func testTRTCClosingRoomCancelsStartWaitingForRecipient() async throws {
+        let readiness = TrtcSignalingReadiness()
+        readiness.expectUser("bot")
+        let waiting = expectation(description: "message is waiting")
+        let recorder = PacketRecorder()
+        let queue = RtcMessageQueue(
+            provider: .trtc,
+            beforeSend: {
+                waiting.fulfill()
+                try await readiness.waitUntilReady()
+            },
+            send: recorder.append,
+            onFailure: { _ in XCTFail("Room teardown must not report a new send failure") }
+        )
+        let start = try queue.enqueue("start")
+        await fulfillment(of: [waiting], timeout: 1)
+        queue.close()
+        readiness.close()
+        readiness.setUserPresent("bot", present: true)
+        do {
+            try await start.value
+            XCTFail("A start from a closed room must not be sent")
+        } catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertTrue(recorder.packets.isEmpty)
+    }
+
+    func testTRTCRecipientWaitPreservesLatestUnsentSnapshot() async throws {
+        let readiness = TrtcSignalingReadiness()
+        readiness.expectUser("bot")
+        let waiting = expectation(description: "snapshot is waiting")
+        let recorder = PacketRecorder()
+        let queue = RtcMessageQueue(
+            provider: .trtc,
+            beforeSend: {
+                if !readiness.isReady { waiting.fulfill() }
+                try await readiness.waitUntilReady()
+            },
+            send: recorder.append,
+            onFailure: { _ in XCTFail() }
+        )
+        defer { queue.close(); readiness.close() }
+        let first = try queue.enqueue("old", replacingPendingMessage: "snapshot")
+        await fulfillment(of: [waiting], timeout: 1)
+        let latest = try queue.enqueue("latest", replacingPendingMessage: "snapshot")
+        readiness.setUserPresent("bot", present: true)
+        try await first.value
+        try await latest.value
+        XCTAssertEqual(recorder.packets, [Data("latest".utf8)])
+    }
+
+    func testTRTCRecipientAlreadyPresentDoesNotMissReadiness() async throws {
+        let readiness = TrtcSignalingReadiness()
+        readiness.setUserPresent("bot", present: true)
+        readiness.expectUser("bot")
+        XCTAssertTrue(readiness.isReady)
+        try await readiness.waitUntilReady()
+        readiness.setUserPresent("bot", present: false)
+        XCTAssertFalse(readiness.isReady)
+        readiness.close()
+        do {
+            try await readiness.waitUntilReady()
+            XCTFail("Closed room must fail immediately")
+        } catch { XCTAssertTrue(error is CancellationError) }
+    }
+
+    func testTRTCCancellingOneRecipientWaitDoesNotCancelOthers() async throws {
+        let readiness = TrtcSignalingReadiness()
+        readiness.expectUser("bot")
+        let cancelled = Task { try await readiness.waitUntilReady() }
+        let survivor = Task { try await readiness.waitUntilReady() }
+        cancelled.cancel()
+        do {
+            try await cancelled.value
+            XCTFail("Cancelled recipient wait must terminate")
+        } catch { XCTAssertTrue(error is CancellationError) }
+        readiness.setUserPresent("bot", present: true)
+        try await survivor.value
+        readiness.close()
+    }
+}
+
+extension RtcMessageQueueTests {
+    func testCancelledQueuedRetryReleasesCallerWithoutBypassingEarlierMessage() async throws {
+        let recorder = PacketRecorder()
+        let gate = AsyncThrowingStream<Void, any Error>.makeStream()
+        let waiting = expectation(description: "initial message waiting")
+        let queue = RtcMessageQueue(beforeSend: {
+            waiting.fulfill()
+            for try await _ in gate.stream {}
+        }, send: recorder.append, onFailure: { _ in XCTFail("Cancellation must not fail the room") })
+        waiting.assertForOverFulfill = false
+        let first = try queue.enqueue("first", reportFailure: false)
+        await fulfillment(of: [waiting], timeout: 1)
+        let obsolete = try queue.enqueue("obsolete", reportFailure: false)
+        obsolete.cancel()
+        do { try await obsolete.value; XCTFail("Expected cancellation") } catch {}
+        let next = try queue.enqueue("next", reportFailure: false)
+        for _ in 0..<100 { await Task.yield() }
+        XCTAssertTrue(recorder.packets.isEmpty)
+        gate.continuation.finish()
+        try await first.value
+        try await next.value
+        XCTAssertEqual(recorder.packets, [Data("first".utf8), Data("next".utf8)])
+        queue.close()
+    }
+}

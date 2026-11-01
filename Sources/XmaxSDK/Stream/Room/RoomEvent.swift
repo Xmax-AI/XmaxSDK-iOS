@@ -24,6 +24,8 @@ enum RoomEvent {
     ///   - faceRestoration: Whether to restore the original face.
     ///   - paddingContain: Whether to preserve input aspect ratio within the canvas.
     ///
+    /// - Parameter xid: The logical command identifier retained across retransmissions.
+    ///
     /// - Returns: The JSON generation start message.
     ///
     /// - Throws: An error if generation parameters, bitrate resolution, or JSON encoding fails.
@@ -34,7 +36,8 @@ enum RoomEvent {
         targetSize: CGSize? = nil,
         context: RealtimeContext,
         faceRestoration: Bool = false,
-        paddingContain: Bool = false
+        paddingContain: Bool = false,
+        xid: String? = nil
     ) throws -> String {
         try encode(
             StartPayload(
@@ -48,7 +51,8 @@ enum RoomEvent {
                 ),
                 userID: userID,
                 taskID: taskID
-            )
+            ),
+            xid: xid
         )
     }
 
@@ -63,6 +67,8 @@ enum RoomEvent {
     ///   - faceRestoration: Whether to restore the original face.
     ///   - paddingContain: Whether to preserve input aspect ratio within the canvas.
     ///
+    /// - Parameter xid: The logical command identifier retained across retransmissions.
+    ///
     /// - Returns: The JSON condition update.
     ///
     /// - Throws: An error if parameters are invalid or JSON encoding fails.
@@ -73,7 +79,8 @@ enum RoomEvent {
         targetSize: CGSize? = nil,
         context: RealtimeContext,
         faceRestoration: Bool = false,
-        paddingContain: Bool = false
+        paddingContain: Bool = false,
+        xid: String? = nil
     ) throws -> String {
         try encode(
             ChangeConditionPayload(
@@ -86,7 +93,8 @@ enum RoomEvent {
                 ),
                 userID: userID,
                 taskID: taskID
-            )
+            ),
+            xid: xid
         )
     }
 
@@ -97,20 +105,24 @@ enum RoomEvent {
     ///   - taskID: The generation task to update.
     ///   - targetSize: The integer returned pixel dimensions.
     ///
+    /// - Parameter xid: The logical command identifier retained across retransmissions.
+    ///
     /// - Returns: The JSON target-size update.
     ///
     /// - Throws: An error if dimensions are invalid or bitrate resolution or JSON encoding fails.
     static func changeTargetSize(
         userID: String,
         taskID: String,
-        targetSize: CGSize
+        targetSize: CGSize,
+        xid: String? = nil
     ) throws -> String {
         try encode(
             ChangeTargetSizePayload(
                 params: TargetSizeParameters(size: targetSize),
                 userID: userID,
                 taskID: taskID
-            )
+            ),
+            xid: xid
         )
     }
 
@@ -223,7 +235,8 @@ private extension RoomEvent {
     ///
     /// - Throws: An error if payload encoding, JSON conversion, or text conversion fails.
     static func encode(
-        _ payload: some Encodable
+        _ payload: some Encodable,
+        xid: String? = nil
     ) throws -> String {
         let payloadData = try JSONEncoder().encode(
             Envelope(
@@ -238,6 +251,8 @@ private extension RoomEvent {
                 message: "Failed to encode RTC room event"
             )
         }
+
+        if let xid { object["xid"] = xid }
 
         if let taskID = object["uid"] {
             object["session_uid"] = taskID

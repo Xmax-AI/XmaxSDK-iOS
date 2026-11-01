@@ -10,7 +10,7 @@
 
 import Foundation
 
-/// Encodes signaling into Agora data-stream packets for server reassembly.
+/// Encodes signaling into provider-specific packets for server reassembly.
 enum RtcMessageCodec {
 
     /// Encodes UTF-8 signaling as one packet or reassemblable JSON fragments.
@@ -21,7 +21,8 @@ enum RtcMessageCodec {
     ///
     /// - Throws: An error if the message is empty, exceeds limits, or cannot be encoded.
     static func encode(
-        _ message: String
+        _ message: String,
+        provider: RtcProvider = .agora
     ) throws -> [Data] {
         let bytes = Data(message.utf8)
         guard !bytes.isEmpty, bytes.count <= 256 * 1024 else {
@@ -67,6 +68,7 @@ enum RtcMessageCodec {
         return try chunks.enumerated().map { index, chunk in
             try JSONEncoder().encode(
                 Fragment(
+                    event: provider == .agora ? "__agora_chunk__" : "__trtc_chunk__",
                     eventId: eventID,
                     index: index,
                     count: chunks.count,
@@ -80,7 +82,7 @@ enum RtcMessageCodec {
     private struct Fragment: Encodable {
 
         /// The signaling fragmentation event name.
-        let event = "__agora_chunk__"
+        let event: String
 
         /// The identifier associating fragments of one message.
         let eventId: String
@@ -102,11 +104,17 @@ final class RtcMessageQueue: @unchecked Sendable {
     /// The operation submitting one packet.
     private let send: @Sendable (Data) throws -> Void
 
+    /// Waits for transport-specific readiness without blocking a native callback thread.
+    private let beforeSend: @Sendable () async throws -> Void
+
     /// The handler for reportable asynchronous send failures.
     private let onFailure: @Sendable (XmaxError) -> Void
 
     /// The packet and byte rate limiter.
-    private let limiter = RateLimiter()
+    private let limiter: RateLimiter
+
+    /// The transport determining message framing and quotas.
+    private let provider: RtcProvider
 
     /// The lock protecting tasks, coalescing, and closure state.
     private let lock = NSLock()
@@ -128,9 +136,14 @@ final class RtcMessageQueue: @unchecked Sendable {
 
     /// Creates an ordered, rate-limited signaling queue.
     init(
+        provider: RtcProvider = .agora,
+        beforeSend: @escaping @Sendable () async throws -> Void = {},
         send: @escaping @Sendable (Data) throws -> Void,
         onFailure: @escaping @Sendable (XmaxError) -> Void
     ) {
+        self.provider = provider
+        self.beforeSend = beforeSend
+        self.limiter = RateLimiter(provider: provider)
         self.send = send
         self.onFailure = onFailure
     }
@@ -151,7 +164,7 @@ final class RtcMessageQueue: @unchecked Sendable {
         reportFailure: Bool = true,
         replacingPendingMessage key: String? = nil
     ) throws -> Task<Void, any Error> {
-        let packets = try RtcMessageCodec.encode(message)
+        let packets = try RtcMessageCodec.encode(message, provider: provider)
         return try lock.withLock {
             guard !closed else {
                 throw CancellationError()
@@ -194,12 +207,13 @@ final class RtcMessageQueue: @unchecked Sendable {
 
                 do {
                     if previousFailureIsFatal {
-                        try await previous?.value
+                        try await Self.waitForCompletion(of: previous)
                     } else {
-                        _ = try? await previous?.value
+                        _ = try? await Self.waitForCompletion(of: previous)
                     }
 
                     try Task.checkCancellation()
+                    try await beforeSend()
                     let currentPackets: [Data]
                     if let key {
                         currentPackets = try await takePendingPackets(
@@ -212,6 +226,7 @@ final class RtcMessageQueue: @unchecked Sendable {
 
                     for packet in currentPackets {
                         try await limiter.wait(byteCount: packet.count)
+                        try await beforeSend()
                         try Task.checkCancellation()
                         try send(packet)
                         await limiter.record(byteCount: packet.count)
@@ -245,7 +260,16 @@ final class RtcMessageQueue: @unchecked Sendable {
             }
 
             tasks[id] = task
-            lastTask = task
+            // Cancelling queued work releases its caller immediately while preserving the
+            // submission barrier of any earlier message that is still sending fragments.
+            lastTask = Task {
+                if previousFailureIsFatal {
+                    try await previous?.value
+                } else {
+                    _ = try? await previous?.value
+                }
+                try await task.value
+            }
             lastFailureIsFatal = reportFailure
             return task
         }
@@ -375,9 +399,22 @@ private extension RtcMessageQueue {
         }
     }
 
-    /// A sliding-window limiter for signaling packets and bytes. Allows headroom below the
-    /// per-channel 60 packets/s and client-wide 30 KB/s limits.
+    /// A sliding-window limiter with headroom below each transport's packet and byte quotas.
     actor RateLimiter {
+
+        /// The maximum number of messages submitted per second.
+        let packetLimit: Int
+
+        /// The maximum payload bytes submitted per second.
+        let byteLimit: Int
+
+        /// Creates transport-specific quotas, including headroom for native accounting.
+        init(
+            provider: RtcProvider = .agora
+        ) {
+            packetLimit = provider == .agora ? 58 : 28
+            byteLimit = provider == .agora ? 29000 : 7500
+        }
 
         /// The send timestamps and byte counts in the current window.
         var sent: [(time: UInt64, bytes: Int)] = []
@@ -396,13 +433,13 @@ private extension RtcMessageQueue {
                 sent.removeAll {
                     now - $0.time >= 1000000000
                 }
-                if sent.count < 58,
+                if sent.count < packetLimit,
                     sent.reduce(
                         0,
                         {
                             $0 + $1.bytes
                         }
-                    ) + byteCount <= 29000
+                    ) + byteCount <= byteLimit
                 {
                     return
                 }

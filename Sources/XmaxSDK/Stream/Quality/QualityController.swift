@@ -54,6 +54,9 @@ final class QualityController: QualityControlling, RtcQualityListener,
     /// The network sample and timestamp handler.
     private var adaptiveListener: (@Sendable (RealtimeNetworkQuality, TimeInterval) -> Void)?
 
+    /// The RTC provider isolating transport quality history.
+    private let provider: RtcProvider
+
     /// The preferences storing quality history.
     private let historyDefaults: UserDefaults
 
@@ -64,9 +67,11 @@ final class QualityController: QualityControlling, RtcQualityListener,
     ///   - historyDefaults: The preferences storing model-specific quality history.
     init(
         rtcManager: any RtcManaging,
+        provider: RtcProvider = .agora,
         historyDefaults: UserDefaults = .standard
     ) {
         self.historyDefaults = historyDefaults
+        self.provider = provider
         rtcManager.setQualityListener(self)
     }
 
@@ -98,6 +103,7 @@ final class QualityController: QualityControlling, RtcQualityListener,
                 isAdaptiveQualityEnabled
                 ? QualityHistory(
                     model: model,
+                    provider: provider,
                     defaults: historyDefaults
                 )
                 : nil
@@ -106,7 +112,8 @@ final class QualityController: QualityControlling, RtcQualityListener,
                 baseline: baseline,
                 level: history?.read(downlink: false) ?? .l1,
                 downlink: false,
-                minimumInputPixels: minimumInputPixels
+                minimumInputPixels: minimumInputPixels,
+                provider: provider
             )
             downlinkQuality = QualityDirection(
                 baseline: baseline,
@@ -223,7 +230,8 @@ final class QualityController: QualityControlling, RtcQualityListener,
             baseline: uplinkQuality.baseline,
             uplinkLevel: uplinkQuality.level,
             downlinkLevel: downlinkQuality.level,
-            minimumInputPixels: uplinkQuality.minimumInputPixels
+            minimumInputPixels: uplinkQuality.minimumInputPixels,
+            provider: provider
         )
     }
 

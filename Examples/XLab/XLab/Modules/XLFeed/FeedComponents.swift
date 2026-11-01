@@ -247,6 +247,34 @@ final class FeedModelRegistryCardView: FeedCardView, UITextFieldDelegate {
         activeIndicator: UIView
     )] = []
 
+    private let rtcProviders = RtcProvider.allCases
+
+    private lazy var rtcSelector: UISegmentedControl = {
+        let names = rtcProviders.map { provider in
+            switch provider {
+            case .agora: "Agora"
+            case .trtc: "TRTC"
+            }
+        }
+        let selector = UISegmentedControl(items: names)
+        selector.selectedSegmentIndex = rtcProviders.firstIndex(
+            of: RealtimePreferences.selectedRtcProvider
+        ) ?? 0
+        selector.backgroundColor = .feed(rgb: 0x080C12, alpha: 0.40)
+        selector.selectedSegmentTintColor = FeedPalette.mint
+        selector.setTitleTextAttributes([
+            .font: feedFont(ofSize: 11, weight: .bold),
+            .foregroundColor: UIColor.feed(rgb: 0xD6DEE9)
+        ], for: .normal)
+        selector.setTitleTextAttributes([
+            .foregroundColor: UIColor.feed(rgb: 0x0D1218)
+        ], for: .selected)
+        selector.accessibilityLabel = XLLocalization.text("feed.rtc.title")
+        selector.accessibilityIdentifier = "feed.rtc.selector"
+        selector.addTarget(self, action: #selector(rtcProviderDidChange), for: .valueChanged)
+        return selector
+    }()
+
     private lazy var apiKeyTextField: UITextField = {
         let textField = UITextField()
         textField.attributedPlaceholder = NSAttributedString(
@@ -386,10 +414,22 @@ final class FeedModelRegistryCardView: FeedCardView, UITextFieldDelegate {
         )
         updateModelSelection()
 
-        let stack = feedVerticalStack([header, apiContainer, divider, modelList])
+        let rtcTitle = makeFeedLabel(
+            XLLocalization.text("feed.rtc.title"),
+            size: 13,
+            weight: .bold,
+            color: .feed(rgb: 0xE9EDF3)
+        )
+        let rtcSelection = feedVerticalStack([rtcTitle, rtcSelector], spacing: 10)
+        rtcSelector.snp.makeConstraints { make in
+            make.height.equalTo(40)
+        }
+
+        let stack = feedVerticalStack([header, apiContainer, divider, modelList, rtcSelection])
         stack.setCustomSpacing(14, after: header)
         stack.setCustomSpacing(12, after: apiContainer)
         stack.setCustomSpacing(4, after: divider)
+        stack.setCustomSpacing(16, after: modelList)
         contentView.addSubview(stack)
         stack.snp.makeConstraints { make in
             make.edges.equalToSuperview().inset(18)
@@ -455,6 +495,12 @@ final class FeedModelRegistryCardView: FeedCardView, UITextFieldDelegate {
         selectedModel = model
         RealtimePreferences.selectedModel = model
         updateModelSelection()
+    }
+
+    @objc private func rtcProviderDidChange() {
+        let index = rtcSelector.selectedSegmentIndex
+        guard rtcProviders.indices.contains(index) else { return }
+        RealtimePreferences.selectedRtcProvider = rtcProviders[index]
     }
 
     private func updateModelSelection() {

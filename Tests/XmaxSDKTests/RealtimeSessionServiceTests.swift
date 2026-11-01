@@ -17,7 +17,7 @@ final class RealtimeSessionServiceTests: XCTestCase {
     func testCreateSessionUsesPublicModelIdentifiers() async throws {
         XCTAssertEqual(
             RealtimeModel.allCases.map(\.rawValue),
-            ["x2.1"]
+            ["x2.1", "x2.1-trtc"]
         )
         for model in RealtimeModel.allCases {
             let payload = try JSONSerialization.data(withJSONObject: [
@@ -282,7 +282,7 @@ final class RealtimeSessionServiceTests: XCTestCase {
 private extension RealtimeSessionServiceTests {
     func waitForRequest(_ apiService: RealtimeApiServiceStub) async {
         for _ in 0..<1_000 where apiService.requests.isEmpty {
-            await Task.yield()
+            try? await Task.sleep(nanoseconds: 1_000_000)
         }
         XCTAssertFalse(apiService.requests.isEmpty)
     }
@@ -414,5 +414,102 @@ private final class ManualRealtimeHeartbeatSleeper: @unchecked Sendable {
 
     func resume() {
         continuation.yield()
+    }
+}
+
+extension RealtimeSessionServiceTests {
+    func testTRTCSelectionDoesNotRestrictModelOrChangeSessionRequest() async throws {
+        XCTAssertEqual(RealtimeConfiguration(model: .x2_1).rtcProvider, .agora)
+        XCTAssertEqual(RealtimeConfiguration(model: .x2_1, rtcProvider: .trtc).rtcProvider, .trtc)
+        let credentials: [String: String] = [
+            "room_id": "00123", "rtc_app_id": "1600126360", "rtc_user_id": "rtc-user",
+            "rtc_bot_id": "bot", "user_sig": " sig ", "private_map_key_with_string_room_id": " key "
+        ]
+        for asString in [false, true] {
+            let extra: Any = asString
+                ? String(decoding: try JSONSerialization.data(withJSONObject: credentials), as: UTF8.self)
+                : credentials
+            let payload = try JSONSerialization.data(withJSONObject: [
+                "sessionUid": "session-trtc", "userUid": "business-user", "modelExtra": extra
+            ])
+            let api = RealtimeApiServiceStub(responses: [.success(payload)])
+            let service = RealtimeSessionService(apiService: api, provider: .trtc)
+            let session = try await service.createSession(model: .x2_1)
+            XCTAssertEqual(session.connection, RealtimeSessionConnection(
+                roomID: "00123", userID: "rtc-user",
+                credentials: .trtc(sdkAppID: 1600126360, userSig: "sig", privateMapKey: "key"), botName: "bot"
+            ))
+            let body = try XCTUnwrap(api.requests.first?.body)
+            XCTAssertEqual(try JSONSerialization.jsonObject(with: body) as? [String: String], ["model": "x2.1"])
+        }
+    }
+
+    func testInvalidTRTCCredentialsCloseAllocatedSessionWithoutFallback() async throws {
+        let complete = [
+            "room_id": "room", "rtc_app_id": "1600126360", "rtc_user_id": "rtc-user",
+            "rtc_bot_id": "bot", "user_sig": "signature", "private_map_key_with_string_room_id": "key"
+        ]
+        var cases: [[String: String]] = []
+        for field in complete.keys {
+            var missing = complete
+            missing.removeValue(forKey: field)
+            cases.append(missing)
+        }
+        for appID in ["0", "-1", "4294967296", "other-app"] {
+            var invalid = complete
+            invalid["rtc_app_id"] = appID
+            cases.append(invalid)
+        }
+        cases.append([
+            "room_id": "room", "rtc_app_id": RtcEngineManager.defaultAppID,
+            "rtc_user_id": "rtc-user", "rtc_bot_id": "bot", "room_token": "agora-token"
+        ])
+        for extra in cases {
+            let payload = try JSONSerialization.data(withJSONObject: [
+                "sessionUid": "invalid-trtc", "userUid": "fallback-forbidden", "modelExtra": extra
+            ])
+            let api = RealtimeApiServiceStub(responses: [.success(payload), .success(Data("{}".utf8))])
+            do {
+                _ = try await RealtimeSessionService(apiService: api, provider: .trtc).createSession(model: .x2_1)
+                XCTFail("Invalid credentials must not fall back to another provider")
+            } catch {
+                XCTAssertEqual((error as? XmaxError)?.code, .sessionError)
+            }
+            XCTAssertEqual(api.requests.map(\.path), ["/session", "/session/invalid-trtc"])
+            XCTAssertEqual(api.requests.last?.method, .delete)
+        }
+    }
+
+    func testTRTCCredentialsAreRejectedByAgoraSelection() async throws {
+        let payload = Data(#"{"sessionUid":"wrong-provider","modelExtra":{"room_id":"room","rtc_app_id":"1600126360","rtc_user_id":"user","rtc_bot_id":"bot","user_sig":"sig","private_map_key_with_string_room_id":"key"}}"#.utf8)
+        let api = RealtimeApiServiceStub(responses: [.success(payload), .success(Data("{}".utf8))])
+        do {
+            _ = try await RealtimeSessionService(apiService: api).createSession(model: .x2_1)
+            XCTFail("Provider mismatch must fail")
+        } catch {
+            XCTAssertEqual((error as? XmaxError)?.code, .sessionError)
+        }
+        XCTAssertEqual(api.requests.last?.path, "/session/wrong-provider")
+    }
+}
+
+extension RealtimeSessionServiceTests {
+    func testFirstHeartbeatIsImmediateAndAllowanceAppearsOnlyOnce() async throws {
+        let response = Data(#"{"sessionUid":"session","status":"ACTIVE"}"#.utf8)
+        let api = RealtimeApiServiceStub(responses: [.success(response), .success(response)])
+        let sleeper = ManualRealtimeHeartbeatSleeper()
+        let service = RealtimeSessionService(apiService: api, heartbeatSleeper: sleeper.sleeper)
+        service.startHeartbeat(sessionID: "session", firstHeartbeatGraceSeconds: 4) { _, _ in
+            XCTFail("Active heartbeats should not fail")
+        }
+        await waitForRequest(api)
+        XCTAssertEqual(api.requests.count, 1)
+        let body = try XCTUnwrap(api.requests.first?.body)
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: body) as? [String: Int], ["firstHeartbeatGraceSeconds": 4])
+        sleeper.resume()
+        for _ in 0..<1000 where api.requests.count < 2 { try await Task.sleep(nanoseconds: 1_000_000) }
+        service.stopHeartbeat()
+        XCTAssertEqual(api.requests.count, 2)
+        XCTAssertNil(api.requests.last?.body)
     }
 }

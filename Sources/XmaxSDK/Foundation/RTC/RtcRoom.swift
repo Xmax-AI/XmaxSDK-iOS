@@ -19,6 +19,9 @@ enum RtcRoomEvent: Sendable {
     /// A remote user's video publication changed.
     case publication(userID: String, published: Bool)
 
+    /// A remote user sent an unparsed signaling packet.
+    case message(userID: String, data: Data)
+
     /// The room connection or media transport failed.
     case failure(XmaxError)
 

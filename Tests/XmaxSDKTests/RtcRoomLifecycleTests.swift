@@ -314,3 +314,35 @@ private final class RoomEventRecorder: RtcEventListener {
         failures.append(error)
     }
 }
+
+extension RtcRoomLifecycleTests {
+    func testIncomingMessagesAreDeliveredOnlyForCurrentJoinedRoom() async throws {
+        let firstStarted = expectation(description: "first room entering")
+        let secondStarted = expectation(description: "second room entering")
+        let first = RtcRoomStub(onJoin: { firstStarted.fulfill() })
+        let second = RtcRoomStub(onJoin: { secondStarted.fulfill() })
+        let rooms = AudioRoomSequence(first: first, second: second)
+        let manager = makeManager { _ in rooms.next() }
+        try await manager.initialize()
+        let received = expectation(description: "current room message")
+        manager.setRoomMessageListener { sender, data in
+            XCTAssertEqual(sender, "bot")
+            XCTAssertEqual(data, Data("current".utf8))
+            received.fulfill()
+        }
+        let joining = Task { try await manager.joinRoom(configuration: config("first")) }
+        await fulfillment(of: [firstStarted], timeout: 1)
+        first.emit(.message(userID: "bot", data: Data("before-join".utf8)))
+        first.emit(.joined)
+        try await joining.value
+        await manager.leaveRoom()
+        let rejoining = Task { try await manager.joinRoom(configuration: config("second")) }
+        await fulfillment(of: [secondStarted], timeout: 1)
+        second.emit(.joined)
+        try await rejoining.value
+        first.emit(.message(userID: "bot", data: Data("old-room".utf8)), late: true)
+        second.emit(.message(userID: "bot", data: Data("current".utf8)))
+        await fulfillment(of: [received], timeout: 1)
+        await manager.destroy()
+    }
+}

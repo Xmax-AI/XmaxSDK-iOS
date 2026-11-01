@@ -510,7 +510,7 @@ final class StreamControllerTests: XCTestCase {
     func testPublicationWaitsForSignalFlushAndDisconnectCancelsConfirmation() async throws {
         let rtc = RtcManagingStub()
         let gate = AsyncStream<Void>.makeStream()
-        rtc.flushHandler = {
+        rtc.commandSendHandler = {
             for await _ in gate.stream { break }
             try Task.checkCancellation()
         }
@@ -531,8 +531,8 @@ final class StreamControllerTests: XCTestCase {
         await controller.disconnect()
         gate.continuation.yield()
         gate.continuation.finish()
-        let confirmation = try await start.value
         do {
+            let confirmation = try await start.value
             try await confirmation.value
             XCTFail("Expected cancelled generation")
         } catch {

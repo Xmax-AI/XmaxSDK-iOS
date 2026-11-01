@@ -14,6 +14,9 @@ public struct RealtimeConfiguration: Equatable, Sendable {
     /// The model used for realtime generation.
     public let model: RealtimeModel
 
+    /// The RTC provider, fixed for this manager's lifetime. Model support is checked by the service.
+    public let rtcProvider: RtcProvider
+
     /// Whether remote frame interpolation is initially enabled.
     public let isFrameInterpolationEnabled: Bool
 
@@ -25,10 +28,12 @@ public struct RealtimeConfiguration: Equatable, Sendable {
     /// Creates a realtime configuration.
     public init(
         model: RealtimeModel,
+        rtcProvider: RtcProvider = .agora,
         isFrameInterpolationEnabled: Bool = true,
         isAdaptiveQualityEnabled: Bool = true
     ) {
         self.model = model
+        self.rtcProvider = rtcProvider
         self.isFrameInterpolationEnabled = isFrameInterpolationEnabled
         self.isAdaptiveQualityEnabled = isAdaptiveQualityEnabled
     }

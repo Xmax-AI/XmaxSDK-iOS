@@ -1958,6 +1958,13 @@ final class XmaxRealtimeManagerTests: XCTestCase {
             position: .front
         )
         _ = try await components.manager.connect(localStream: localStream)
+        XCTAssertFalse(components.sessionService.calls.contains(.startHeartbeat("session-id")))
+        let starting = Task { try await components.manager.startGeneration(context: RealtimeContext(prompt: "test")) }
+        await waitForEvent("start", rtcManager: components.rtcManager)
+        components.rtcManager.emitRemoteVideoAvailable(stream: RemoteStream(roomID: "room-id", userID: "bot-user"))
+        try components.rtcManager.emitRemoteVideoFrame()
+        try await starting.value
+        XCTAssertTrue(components.sessionService.calls.contains(.startHeartbeat("session-id")))
         let expectedError = XmaxError(
             code: .sessionError,
             message: "session closed"

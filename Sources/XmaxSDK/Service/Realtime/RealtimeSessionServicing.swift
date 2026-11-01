@@ -27,9 +27,11 @@ protocol RealtimeSessionServicing: Sendable {
     ///
     /// - Parameters:
     ///   - sessionID: The session identifier to keep alive.
+    ///   - firstHeartbeatGraceSeconds: The startup allowance sent only in the first request.
     ///   - onFailure: The handler receiving the session identifier and heartbeat error.
     func startHeartbeat(
         sessionID: String,
+        firstHeartbeatGraceSeconds: Int?,
         onFailure: @escaping RealtimeSessionHeartbeatFailureHandler
     )
 
@@ -44,4 +46,14 @@ protocol RealtimeSessionServicing: Sendable {
     func closeSession(
         sessionID: String
     ) async throws
+}
+
+extension RealtimeSessionServicing {
+    /// Starts a heartbeat without a startup allowance for internal callers that do not measure it.
+    func startHeartbeat(
+        sessionID: String,
+        onFailure: @escaping RealtimeSessionHeartbeatFailureHandler
+    ) {
+        startHeartbeat(sessionID: sessionID, firstHeartbeatGraceSeconds: nil, onFailure: onFailure)
+    }
 }

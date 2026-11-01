@@ -28,6 +28,7 @@ Pod::Spec.new do |spec|
   }
 
   spec.dependency 'AgoraRtcEngine_iOS/RtcBasic', '4.6.4'
+  spec.dependency 'TXLiteAVSDK_TRTC/TRTC', '13.6.21648'
   spec.dependency 'QCloudCOSXML/Transfer', '6.5.7'
 
   spec.test_spec 'Tests' do |tests|

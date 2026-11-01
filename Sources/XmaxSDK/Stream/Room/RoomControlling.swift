@@ -26,6 +26,9 @@ protocol RoomControlling: Actor {
         ensureActive: @escaping @Sendable () throws -> Void
     ) async throws
 
+    /// Cancels command retries before task media cleanup.
+    func cancelGenerationCommands(taskID: String) async
+
     /// Stops the heartbeat and leaves the RTC room.
     func leave() async
 
@@ -47,7 +50,7 @@ protocol RoomControlling: Actor {
         context: RealtimeContext,
         faceRestoration: Bool,
         paddingContain: Bool
-    ) throws
+    ) async throws
 
     /// Enqueues a generation condition update.
     ///
@@ -68,7 +71,7 @@ protocol RoomControlling: Actor {
         context: RealtimeContext,
         faceRestoration: Bool,
         paddingContain: Bool
-    ) throws
+    ) async throws
 
     /// Changes the active generation task's returned dimensions.
     ///
@@ -81,7 +84,7 @@ protocol RoomControlling: Actor {
     func changeTargetSize(
         taskID: String,
         targetSize: CGSize,
-        ensureActive: @Sendable () throws -> Void
+        ensureActive: @escaping @Sendable () throws -> Void
     ) async throws
 
     /// Enqueues a stop signal if the room and task are active.
@@ -91,7 +94,7 @@ protocol RoomControlling: Actor {
     /// - Throws: An error if stop signaling cannot be encoded or enqueued.
     func stopGeneration(
         taskID: String
-    ) throws
+    ) async throws
 
     /// Submits a generation task's trajectory.
     ///

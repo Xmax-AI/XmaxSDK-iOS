@@ -16,6 +16,9 @@ final class RealtimeSessionService: RealtimeSessionServicing, @unchecked Sendabl
     /// The session API service.
     private let apiService: any ApiServicing
 
+    /// The RTC provider selected at manager creation.
+    private let provider: RtcProvider
+
     /// The heartbeat interval provider.
     private let heartbeatSleeper: RealtimeHeartbeatSleeper
 
@@ -31,9 +34,11 @@ final class RealtimeSessionService: RealtimeSessionServicing, @unchecked Sendabl
     /// Creates a session service with a heartbeat schedule.
     init(
         apiService: any ApiServicing,
+        provider: RtcProvider = .agora,
         heartbeatSleeper: RealtimeHeartbeatSleeper = .live
     ) {
         self.apiService = apiService
+        self.provider = provider
         self.heartbeatSleeper = heartbeatSleeper
     }
 
@@ -61,10 +66,13 @@ final class RealtimeSessionService: RealtimeSessionServicing, @unchecked Sendabl
         )
 
         do {
-            return try Self.makeSession(
+            let session = try Self.makeSession(
                 from: payload,
-                requiresConnection: true
+                requiresConnection: true,
+                provider: provider
             )
+            try Self.ensureSessionActive(session)
+            return session
         } catch {
             if let sessionID = Self.nonEmpty(payload.sessionUID) {
                 do {
@@ -84,9 +92,11 @@ final class RealtimeSessionService: RealtimeSessionServicing, @unchecked Sendabl
     ///
     /// - Parameters:
     ///   - sessionID: The session identifier to keep alive.
+    ///   - firstHeartbeatGraceSeconds: The startup allowance sent only in the first request.
     ///   - onFailure: The handler receiving the session identifier and heartbeat error.
     func startHeartbeat(
         sessionID: String,
+        firstHeartbeatGraceSeconds: Int? = nil,
         onFailure: @escaping RealtimeSessionHeartbeatFailureHandler
     ) {
         heartbeatLock.withLock {
@@ -95,10 +105,12 @@ final class RealtimeSessionService: RealtimeSessionServicing, @unchecked Sendabl
 
             let context = HeartbeatContext(
                 apiService: apiService,
+                provider: provider,
                 sleeper: heartbeatSleeper,
                 versionState: heartbeatVersion,
                 version: version,
                 sessionID: sessionID,
+                firstHeartbeatGraceSeconds: firstHeartbeatGraceSeconds,
                 onFailure: onFailure
             )
             heartbeatTask = Task {
@@ -144,6 +156,11 @@ private extension RealtimeSessionService {
         let model: String
     }
 
+    /// The allowance sent only when generation first becomes ready.
+    struct FirstHeartbeatRequest: Encodable, Sendable {
+        let firstHeartbeatGraceSeconds: Int
+    }
+
     /// A successful response without business fields.
     struct EmptyResponse: Decodable, Sendable {
     }
@@ -153,6 +170,9 @@ private extension RealtimeSessionService {
 
         /// The session heartbeat API service.
         let apiService: any ApiServicing
+
+        /// The transport interpreting refreshed credentials.
+        let provider: RtcProvider
 
         /// The wait for the next heartbeat interval.
         let sleeper: RealtimeHeartbeatSleeper
@@ -165,6 +185,9 @@ private extension RealtimeSessionService {
 
         /// The session kept alive by this heartbeat.
         let sessionID: String
+
+        /// The measured startup allowance included only in the first heartbeat.
+        let firstHeartbeatGraceSeconds: Int?
 
         /// The session heartbeat failure handler.
         let onFailure: RealtimeSessionHeartbeatFailureHandler
@@ -288,8 +311,20 @@ private extension RealtimeSessionService {
         /// The RTC application identifier.
         let appID: String?
 
+        /// The TRTC user authentication signature.
+        let userSig: String?
+
+        /// The TRTC authorization for string-ID rooms.
+        let privateMapKey: String?
+
         /// The mapping from server fields to local properties.
         enum CodingKeys: String, CodingKey {
+
+            /// The TRTC user authentication field.
+            case userSig = "user_sig"
+
+            /// The TRTC string-room authorization field.
+            case privateMapKey = "private_map_key_with_string_room_id"
 
             /// The RTC room identifier field.
             case roomID = "room_id"
@@ -316,6 +351,8 @@ private extension RealtimeSessionService {
             from decoder: any Decoder
         ) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
+            userSig = try? container.decode(String.self, forKey: .userSig)
+            privateMapKey = try? container.decode(String.self, forKey: .privateMapKey)
             roomID = try? container.decode(
                 String.self,
                 forKey: .roomID
@@ -345,9 +382,10 @@ private extension RealtimeSessionService {
     static func runHeartbeat(
         _ context: HeartbeatContext
     ) async {
+        var firstRequest = true
         while context.versionState.isCurrent(context.version) {
             do {
-                try await context.sleeper.sleep()
+                if !firstRequest { try await context.sleeper.sleep() }
                 try Task.checkCancellation()
                 guard context.versionState.isCurrent(context.version) else {
                     return
@@ -355,12 +393,15 @@ private extension RealtimeSessionService {
 
                 let session = try await heartbeatSession(
                     sessionID: context.sessionID,
-                    apiService: context.apiService
+                    apiService: context.apiService,
+                    provider: context.provider,
+                    firstHeartbeatGraceSeconds: firstRequest ? context.firstHeartbeatGraceSeconds : nil
                 )
                 guard context.versionState.isCurrent(context.version) else {
                     return
                 }
                 try ensureSessionActive(session)
+                firstRequest = false
             } catch {
                 guard context.versionState.invalidate(context.version) else {
                     return
@@ -385,15 +426,30 @@ private extension RealtimeSessionService {
     /// - Throws: An error if the request or response is invalid or the task is cancelled.
     static func heartbeatSession(
         sessionID: String,
-        apiService: any ApiServicing
+        apiService: any ApiServicing,
+        provider: RtcProvider,
+        firstHeartbeatGraceSeconds: Int? = nil
     ) async throws -> RealtimeSession {
-        let payload = try await apiService.put(
-            "/session/\(sessionID)/heartbeat",
-            as: SessionPayload.self
-        )
+        let payload: SessionPayload
+        if let firstHeartbeatGraceSeconds {
+            guard firstHeartbeatGraceSeconds >= 0 else {
+                throw XmaxError(code: .invalidConfiguration, message: "firstHeartbeatGraceSeconds must be non-negative")
+            }
+            payload = try await apiService.put(
+                "/session/\(sessionID)/heartbeat",
+                body: FirstHeartbeatRequest(firstHeartbeatGraceSeconds: firstHeartbeatGraceSeconds),
+                as: SessionPayload.self
+            )
+        } else {
+            payload = try await apiService.put(
+                "/session/\(sessionID)/heartbeat",
+                as: SessionPayload.self
+            )
+        }
         return try makeSession(
             from: payload,
-            requiresConnection: false
+            requiresConnection: false,
+            provider: provider
         )
     }
 
@@ -426,7 +482,8 @@ private extension RealtimeSessionService {
     /// - Throws: A session error if its identifier or required RTC credentials are invalid.
     static func makeSession(
         from payload: SessionPayload,
-        requiresConnection: Bool
+        requiresConnection: Bool,
+        provider: RtcProvider
     ) throws -> RealtimeSession {
         guard let sessionID = nonEmpty(payload.sessionUID) else {
             throw XmaxError(
@@ -436,7 +493,7 @@ private extension RealtimeSessionService {
         }
 
         let userID = nonEmpty(payload.userUID)
-        let connection = makeConnection(from: payload.modelExtra)
+        let connection = makeConnection(from: payload.modelExtra, provider: provider)
         if requiresConnection, connection == nil {
             throw XmaxError(
                 code: .sessionError,
@@ -459,7 +516,8 @@ private extension RealtimeSessionService {
     ///
     /// - Returns: The valid credentials for this application, or `nil`.
     static func makeConnection(
-        from modelExtra: ModelExtra?
+        from modelExtra: ModelExtra?,
+        provider: RtcProvider
     ) -> RealtimeSessionConnection? {
         let payload: ConnectionPayload
         switch modelExtra {
@@ -480,18 +538,36 @@ private extension RealtimeSessionService {
         }
 
         guard let roomID = nonEmpty(payload.roomID),
-            let token = nonEmpty(payload.token),
             let userID = nonEmpty(payload.userID),
             let botName = nonEmpty(payload.botName),
-            nonEmpty(payload.appID) == RtcEngineManager.defaultAppID
+            let appID = nonEmpty(payload.appID)
         else {
             return nil
+        }
+
+        let credentials: RtcCredentials
+        switch provider {
+        case .agora:
+            guard appID == RtcEngineManager.defaultAppID,
+                let token = nonEmpty(payload.token)
+            else {
+                return nil
+            }
+            credentials = .agora(token: token)
+        case .trtc:
+            guard let sdkAppID = UInt32(appID), sdkAppID > 0,
+                let userSig = nonEmpty(payload.userSig),
+                let privateMapKey = nonEmpty(payload.privateMapKey)
+            else {
+                return nil
+            }
+            credentials = .trtc(sdkAppID: sdkAppID, userSig: userSig, privateMapKey: privateMapKey)
         }
 
         return RealtimeSessionConnection(
             roomID: roomID,
             userID: userID,
-            token: token,
+            credentials: credentials,
             botName: botName
         )
     }

@@ -29,6 +29,7 @@ final class RealtimeSessionServicingStub: RealtimeSessionServicing,
 
     // 并发状态
     private let lock = NSLock()
+    private(set) var firstHeartbeatGraceSeconds: Int?
     private var storedCalls: [RealtimeSessionServicingCall] = []
     private var heartbeatFailureHandler:
         RealtimeSessionHeartbeatFailureHandler?
@@ -59,9 +60,11 @@ final class RealtimeSessionServicingStub: RealtimeSessionServicing,
 
     func startHeartbeat(
         sessionID: String,
+        firstHeartbeatGraceSeconds: Int?,
         onFailure: @escaping RealtimeSessionHeartbeatFailureHandler
     ) {
         lock.withLock {
+            self.firstHeartbeatGraceSeconds = firstHeartbeatGraceSeconds
             storedCalls.append(.startHeartbeat(sessionID))
             heartbeatFailureHandler = onFailure
         }

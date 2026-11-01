@@ -98,6 +98,9 @@ final class AgoraRtcRoom: RtcRoom, @unchecked Sendable {
         configuration: RoomJoinConfiguration
     ) throws {
         try platform.lock.withLock {
+            guard case .agora(let token) = configuration.credentials else {
+                throw XmaxError(code: .invalidConfiguration, message: "Agora credentials required")
+            }
             guard !isClosed, account == nil, configuration.roomID == roomID else {
                 throw XmaxError(
                     code: .rtcError,
@@ -165,7 +168,7 @@ final class AgoraRtcRoom: RtcRoom, @unchecked Sendable {
 
             try AgoraRtcPlatform.checkResult(
                 platform.engine.joinChannelEx(
-                    byToken: configuration.token,
+                    byToken: token,
                     channelId: roomID,
                     userAccount: configuration.userID,
                     delegate: bridge,
@@ -472,6 +475,10 @@ private extension AgoraRtcRoom {
             case .userJoined(let uid):
                 resolveAccount(uid: uid)
                 return publicationEvents(uid: uid)
+            case .message(let uid, let data):
+                resolveAccount(uid: uid)
+                guard let account = accounts[uid] else { return [] }
+                return [.message(userID: account, data: data)]
             case .publication(
                 let uid,
                 let published

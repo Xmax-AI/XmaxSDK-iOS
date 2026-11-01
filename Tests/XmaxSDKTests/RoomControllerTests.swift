@@ -49,7 +49,8 @@ final class RoomControllerTests: XCTestCase {
                     RoomJoinConfiguration(
                         roomID: "room-id",
                         userID: "user-id",
-                        token: "room-token"
+                        credentials: .agora(token: "room-token"),
+                        signalingUserID: "bot-user"
                     )
                 ),
                 .leaveRoom
@@ -110,7 +111,8 @@ final class RoomControllerTests: XCTestCase {
                     RoomJoinConfiguration(
                         roomID: "room-id",
                         userID: "user-id",
-                        token: "room-token"
+                        credentials: .agora(token: "room-token"),
+                        signalingUserID: "bot-user"
                     )
                 ),
                 .leaveRoom
@@ -313,5 +315,43 @@ private extension RtcManagingStub {
             }
             return message
         }
+    }
+}
+
+extension RoomControllerTests {
+    func testAckFiltersSenderRecipientAndOldRoomBeforeStoppingRetries() async throws {
+        let clock = CommandTestClock()
+        let rtc = RtcManagingStub()
+        let controller = RoomController(rtcManager: rtc, commandSleep: clock.sleep)
+        try await controller.join(connection: connection, ensureActive: {})
+        try await controller.startGeneration(
+            taskID: "task", videoFormat: RealtimeVideoFormat(width: 720, height: 1280, fps: 24),
+            context: RealtimeContext(prompt: "test")
+        )
+        for _ in 0..<1000 where clock.waiterCount != 6 { await Task.yield() }
+        let event = try decode(XCTUnwrap(rtc.controllerMessages.first))
+        let xid = try XCTUnwrap(event["xid"] as? String)
+        for (sender, recipient, count) in [("intruder", "user-id", "1"), ("user-id", "user-id", "1"), ("bot-user", "other-user", "1"), ("bot-user", "user-id", "0")] {
+            rtc.emitRoomMessage(sender: sender, message: "{\"event\":\"xid_ack\",\"xid\":\"\(xid)\",\"user_id\":\"\(recipient)\",\"count\":\(count)}")
+        }
+        // An actor barrier makes every preceding callback observable before checking the clock.
+        for _ in 0..<100 { await Task.yield() }
+        XCTAssertEqual(clock.waiterCount, 6)
+        rtc.emitRoomMessage(sender: "bot-user", message: "{\"event\":\"xid_ack\",\"xid\":\"\(xid)\",\"count\":1}")
+        for _ in 0..<1000 where clock.waiterCount != 0 { try await Task.sleep(nanoseconds: 1_000_000) }
+        XCTAssertEqual(clock.waiterCount, 0)
+        await controller.leave()
+        try await controller.join(connection: connection, ensureActive: {})
+        try await controller.startGeneration(
+            taskID: "task2", videoFormat: RealtimeVideoFormat(width: 720, height: 1280, fps: 24),
+            context: RealtimeContext(prompt: "test")
+        )
+        for _ in 0..<1000 where clock.waiterCount != 6 { await Task.yield() }
+        rtc.emitRoomMessage(sender: "bot-user", message: "{\"event\":\"xid_ack\",\"xid\":\"\(xid)\",\"count\":1}")
+        for _ in 0..<100 { await Task.yield() }
+        XCTAssertEqual(clock.waiterCount, 6)
+        await controller.leave()
+        for _ in 0..<1000 where clock.waiterCount != 0 { await Task.yield() }
+        XCTAssertEqual(clock.waiterCount, 0)
     }
 }

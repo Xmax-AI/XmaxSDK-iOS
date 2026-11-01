@@ -1,7 +1,7 @@
 # Installation guide
 
 For CocoaPods, follow the [README installation steps](../README.md#cocoapods).
-This guide covers the Agora-based implementation.
+This guide covers the implementation with selectable Agora and TRTC transports.
 Use the installation guide from the Git tag matching your SDK release;
 older XmaxSDK binaries require their original RTC dependencies.
 
@@ -14,6 +14,8 @@ and add only the **XmaxSDK** product to your application target.
   and supports iOS 15.0 or later.
 - Agora RTC `4.6.4` is resolved from the
   [official Swift package](https://github.com/AgoraIO/AgoraRtcEngine_iOS).
+- Tencent TRTC `13.6.21648` is resolved from the
+  [official Swift package](https://github.com/Tencent-RTC/TRTC_SwiftPM).
 - COS `6.5.7` uses Xmax-built dynamic XCFrameworks for `QCloudCOSXML/Transfer`
   and `QCloudCore/WithoutMTA`, without the optional Tencent analytics components.
   This is an Xmax packaging of Tencent's source, not an official Tencent Swift package.
@@ -35,7 +37,7 @@ downloaded by SwiftPM. Do not mix the two distributions in the same app target.
 
 Download and extract `XmaxSDK.xcframework` from the
 [release archive linked in the README](../README.md#manual). Do not combine an
-older VolcEngine-based XmaxSDK binary with the Agora dependencies below.
+older XmaxSDK binary with dependencies from a different SDK release.
 Use these exact versions:
 
 - [Agora RTC `4.6.4`](https://download.agora.io/sdk/release/AgoraRtcEngine_iOS-4.6.4.zip):
@@ -43,6 +45,8 @@ Use these exact versions:
   `Agoraffmpeg.xcframework`, `AgoraSoundTouch.xcframework`, and `video_dec.xcframework`.
 - [Agora Infrastructure `1.3.5`](https://download.agora.io/sdk/release/AgoraInfra_iOS-1.3.5.zip):
   use `aosl.xcframework`.
+- [Tencent TRTC `13.6.21648`](https://liteav.sdk.qcloud.com/download/releases/13.6/TXLiteAVSDK_TRTC_iOS_13.6.21648_SDK_en.zip):
+  use `TXLiteAVSDK_TRTC.xcframework`, `TXSoundTouch.xcframework`, and `TXFFmpeg.xcframework`.
 - [Tencent Cloud COS iOS SDK `6.5.7`](https://github.com/tencentyun/qcloud-sdk-ios/releases/download/6.5.7/QCloudCOSXML-6.5.7.zip):
   use `QCloudCOSXML.xcframework` and `QCloudCore.xcframework` from the official
   release archive.
@@ -63,9 +67,13 @@ Embedded Content**:
 | `AgoraSoundTouch.xcframework` | Embed & Sign |
 | `video_dec.xcframework` | Embed & Sign |
 | `aosl.xcframework` | Embed & Sign |
+| `TXLiteAVSDK_TRTC.xcframework` | Embed & Sign |
+| `TXSoundTouch.xcframework` | Embed & Sign |
+| `TXFFmpeg.xcframework` | Embed & Sign |
 
-The XmaxSDK and COS binaries are static. The six Agora binaries are dynamic
-and must be embedded and signed by the application target.
+The XmaxSDK and COS binaries are static. Both RTC providers and their dynamic
+dependencies must be linked, embedded, and signed, regardless of which provider
+you select at runtime. Keep the bundled privacy manifests and license notices.
 
 ### Configure the target
 
@@ -74,7 +82,10 @@ and must be embedded and signed by the application target.
 2. Add `-ObjC` to **Other Linker Flags**.
 3. Link `Accelerate.framework`, `CoreMedia.framework`,
    `CoreTelephony.framework`, `SystemConfiguration.framework`, `libz.tbd`,
-   and `libc++.tbd`.
+   `AVFoundation.framework`, `AVKit.framework`, `MetalKit.framework`,
+   `AudioToolbox.framework`, `VideoToolbox.framework`, `ReplayKit.framework`,
+   `CoreServices.framework`, `CoreMotion.framework`, `MetalPerformanceShaders.framework`,
+   `libresolv.tbd`, and `libc++.tbd`.
 4. Add the COS
    [`PrivacyInfo.xcprivacy`](https://github.com/tencentyun/qcloud-sdk-ios/blob/6.5.7/QCloudCOSXML/PrivacyInfo.xcprivacy)
    file to the application target.
@@ -84,7 +95,7 @@ and must be embedded and signed by the application target.
 Only `QCloudCOSXML.xcframework` and `QCloudCore.xcframework` are required for COS.
 Do not add `QCloudTrack.xcframework`, `COSBeaconAPI_Base.xcframework`, or QimeiSDK.
 The third-party frameworks must be present when importing XmaxSDK because its stable
-Swift module interface imports `QCloudCOSXML` and `AgoraRtcKit`.
+Swift module interface imports `QCloudCOSXML`, `AgoraRtcKit`, and `TXLiteAVSDK_TRTC`.
 
 Continue with the [Quick Start](../README.md#quick-start) to configure permissions
 and start generation.

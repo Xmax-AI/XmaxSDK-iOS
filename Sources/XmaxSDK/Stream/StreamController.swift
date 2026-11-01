@@ -87,6 +87,7 @@ final class StreamController: StreamControlling, RtcEventListener,
     ///   - generationTiming: The result stream confirmation timeout.
     convenience init(
         rtcManager: any RtcManaging,
+        rtcProvider: RtcProvider = .agora,
         timing: RealtimeTiming = RealtimeTiming(),
         errorListener: @escaping XmaxErrorListener = { _ in
         },
@@ -101,7 +102,7 @@ final class StreamController: StreamControlling, RtcEventListener,
                 timing: timing
             ),
             encodingController: EncodingController(rtcManager: rtcManager),
-            qualityController: QualityController(rtcManager: rtcManager),
+            qualityController: QualityController(rtcManager: rtcManager, provider: rtcProvider),
             timing: timing,
             errorListener: errorListener,
             remoteStreamListener: remoteStreamListener,
@@ -359,17 +360,16 @@ final class StreamController: StreamControlling, RtcEventListener,
         let confirmation = try beginGenerationConfirmation(taskID: taskID)
 
         do {
-            try await roomController.startGeneration(
-                taskID: taskID,
-                videoFormat: videoFormat,
-                targetSize: targetSize,
-                context: context,
-                faceRestoration: faceRestoration,
-                paddingContain: paddingContain
-            )
             try await withThrowingTaskGroup(of: Void.self) { group in
                 group.addTask {
-                    try await self.rtcManager.awaitPendingMessages()
+                    try await self.roomController.startGeneration(
+                        taskID: taskID,
+                        videoFormat: videoFormat,
+                        targetSize: targetSize,
+                        context: context,
+                        faceRestoration: faceRestoration,
+                        paddingContain: paddingContain
+                    )
                 }
 
                 group.addTask {
@@ -772,6 +772,8 @@ final class StreamController: StreamControlling, RtcEventListener,
         guard let result else {
             return ""
         }
+
+        await roomController.cancelGenerationCommands(taskID: result.taskID)
 
         reject(
             result.waiter,

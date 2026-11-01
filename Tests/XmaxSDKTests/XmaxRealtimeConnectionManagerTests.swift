@@ -48,7 +48,8 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
                     RoomJoinConfiguration(
                         roomID: "room-id",
                         userID: "user-id",
-                        token: "room-token"
+                        credentials: .agora(token: "room-token"),
+                        signalingUserID: "bot-user"
                     )
                 ),
                 .publishLocalVideo,
@@ -58,10 +59,15 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
         XCTAssertEqual(
             sessionService.calls,
             [
-                .createSession(.x2_1),
-                .startHeartbeat("session-id")
+                .createSession(.x2_1)
             ]
         )
+        await components.manager.startHeartbeat(sessionID: "obsolete-session")
+        XCTAssertEqual(sessionService.calls, [.createSession(.x2_1)])
+        await components.manager.startHeartbeat(sessionID: "session-id")
+        await components.manager.startHeartbeat(sessionID: "session-id")
+        XCTAssertEqual(sessionService.calls, [.createSession(.x2_1), .startHeartbeat("session-id")])
+        XCTAssertNotNil(sessionService.firstHeartbeatGraceSeconds)
         let track = try XCTUnwrap(stream.videoTrack)
         XCTAssertNotNil(VideoRenderRegistry.binding(for: track))
         XCTAssertNotNil(TrajectoryRegistry.binding(for: track))
@@ -139,7 +145,6 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
             sessionService.calls,
             [
                 .createSession(.x2_1),
-                .startHeartbeat("session-id"),
                 .stopHeartbeat,
                 .closeSession("session-id")
             ]
@@ -199,7 +204,8 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
                     RoomJoinConfiguration(
                         roomID: "room-id",
                         userID: "user-id",
-                        token: "room-token"
+                        credentials: .agora(token: "room-token"),
+                        signalingUserID: "bot-user"
                     )
                 ),
                 .publishLocalVideo,

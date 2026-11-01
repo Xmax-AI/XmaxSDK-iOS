@@ -13,6 +13,11 @@ import Foundation
 /// An interface for RTC engines, rooms, media, and remote frames.
 protocol RtcManaging: Sendable {
 
+    /// Sets a room-scoped raw signaling listener; callbacks may arrive on native RTC threads.
+    func setRoomMessageListener(
+        _ listener: (@Sendable (String, Data) -> Void)?
+    )
+
     /// Acquires an exclusive engine lease and initializes RTC.
     ///
     /// - Throws: An error if lease acquisition is cancelled or initialization fails.
@@ -222,6 +227,11 @@ protocol RtcManaging: Sendable {
 }
 
 extension RtcManaging {
+
+    /// Allows media-only implementations to omit incoming signaling.
+    func setRoomMessageListener(
+        _ listener: (@Sendable (String, Data) -> Void)?
+    ) {}
 
     /// Enqueues signaling with asynchronous failure reporting enabled.
     ///

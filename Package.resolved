@@ -1,5 +1,5 @@
 {
-  "originHash" : "4d925d59b08501bbf61f5796b2dcd019853183b5a40f14fd613cb461ab258be4",
+  "originHash" : "26a0d884945a69b275af0491195cf72137c4c08a0acd6a7f1c2b84ce239b5653",
   "pins" : [
     {
       "identity" : "agorainfra_ios",
@@ -17,6 +17,15 @@
       "state" : {
         "revision" : "00b614b1ff1135565e45e9e4bf7d4ec33da7b67f",
         "version" : "4.6.4"
+      }
+    },
+    {
+      "identity" : "trtc_swiftpm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Tencent-RTC/TRTC_SwiftPM.git",
+      "state" : {
+        "revision" : "4b0c01a02dd0f0e4550212c48c125c40d671b064",
+        "version" : "13.6.21648"
       }
     }
   ],

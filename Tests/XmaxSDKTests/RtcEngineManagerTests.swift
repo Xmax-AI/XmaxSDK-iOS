@@ -184,3 +184,26 @@ final class RtcEngineLifecycleRecorder: @unchecked Sendable {
         lock.unlock()
     }
 }
+
+extension RtcEngineManagerTests {
+    func testDifferentProvidersShareExclusiveLeaseAndCancelledWaitersAreRemoved() async throws {
+        let lifecycle = RtcEngineLifecycleRecorder()
+        let manager = RtcEngineManager(appID: "test", makeEngine: lifecycle.create, destroyEngine: lifecycle.destroy)
+        let agora = try await manager.acquire(provider: .agora)
+        let cancelled = Task { try await manager.acquire(provider: .trtc) }
+        cancelled.cancel()
+        do {
+            _ = try await cancelled.value
+            XCTFail("Cancelled TRTC acquisition must not create an engine")
+        } catch is CancellationError { }
+        let trtcTask = Task { try await manager.acquire(provider: .trtc) }
+        await Task.yield()
+        XCTAssertEqual(lifecycle.createdAppIDs.count, 1)
+        await manager.release(agora)
+        let trtc = try await trtcTask.value
+        XCTAssertEqual(lifecycle.destroyCount, 1)
+        XCTAssertEqual(lifecycle.createdAppIDs.count, 2)
+        await manager.release(trtc)
+        XCTAssertEqual(lifecycle.destroyCount, 2)
+    }
+}

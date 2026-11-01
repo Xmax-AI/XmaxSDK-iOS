@@ -67,6 +67,7 @@ final class RtcManagingStub: RtcManaging, @unchecked Sendable {
     private let leaveRoomHandler: LeaveRoomHandler?
     private let setRemoteVideoFrameListenerError: (any Error)?
     private let setRemoteAudioFrameListenerError: (any Error)?
+    var commandSendHandler: (@Sendable () async throws -> Void)?
     var flushHandler: (@Sendable () async throws -> Void)?
 
     // 并发状态
@@ -74,6 +75,7 @@ final class RtcManagingStub: RtcManaging, @unchecked Sendable {
     private var storedCalls: [RtcManagingCall] = []
     private var storedReplacementKeys: [String?] = []
     private var storedDiscardedKeys: [String?] = []
+    private var roomMessageListener: (@Sendable (String, Data) -> Void)?
     private weak var storedEventListener: (any RtcEventListener)?
     private weak var storedQualityListener: (any RtcQualityListener)?
     private var storedRemoteVideoFrameStream: RemoteStream?
@@ -124,6 +126,15 @@ final class RtcManagingStub: RtcManaging, @unchecked Sendable {
         self.setRemoteVideoFrameListenerError =
             setRemoteVideoFrameListenerError
         self.setRemoteAudioFrameListenerError = setRemoteAudioFrameListenerError
+    }
+
+    func setRoomMessageListener(_ listener: (@Sendable (String, Data) -> Void)?) {
+        lock.withLock { roomMessageListener = listener }
+    }
+
+    func emitRoomMessage(sender: String, message: String) {
+        let callback = lock.withLock { roomMessageListener }
+        callback?(sender, Data(message.utf8))
     }
 
     var calls: [RtcManagingCall] {
@@ -342,7 +353,8 @@ final class RtcManagingStub: RtcManaging, @unchecked Sendable {
                 throw sendRoomMessageError
             }
         }
-        return Task {}
+        let handler = commandSendHandler
+        return Task { try await handler?() }
     }
 
     var replacementKeys: [String?] { lock.withLock { storedReplacementKeys } }
