@@ -14,7 +14,7 @@ import XCTest
 
 final class RealtimeModelTests: XCTestCase {
     func testX21ModelsAreAvailable() {
-        XCTAssertEqual(RealtimeModel.allCases, [.x2_1, .x2_1_trtc, .x2_1_debug])
+        XCTAssertEqual(RealtimeModel.allCases, [.x2_1, .x2_1_trtc])
         XCTAssertNil(RealtimeModel(rawValue: "x2.0"))
         XCTAssertNil(RealtimeModel(rawValue: "x2.1.1-preview-cn"))
         XCTAssertNil(RealtimeModel(rawValue: "x2.1.1-preview-us"))
@@ -22,8 +22,8 @@ final class RealtimeModelTests: XCTestCase {
 
     func testX21ModelCameraFormats() {
         let models = RealtimeModel.allCases
-        XCTAssertEqual(models.map(\.rawValue), ["x2.1", "x2.1-trtc", "x2.1-debug"])
-        XCTAssertEqual(models.map(\.displayName), ["X2.1", "X2.1 TRTC", "X2.1 Debug"])
+        XCTAssertEqual(models.map(\.rawValue), ["x2.1", "x2.1-trtc"])
+        XCTAssertEqual(models.map(\.displayName), ["X2.1", "X2.1 TRTC"])
 
         for model in models {
             XCTAssertEqual(model.defaultFrameRate, 30)
@@ -42,12 +42,6 @@ final class RealtimeModelTests: XCTestCase {
                 RealtimeVideoFormat(width: 1536, height: 1152, fps: 30)
             ])
         }
-    }
-
-    func testDebugModelUsesInternalSessionEndpointAndOtherModelsRetainRegionalRouting() {
-        XCTAssertEqual(RealtimeModel.x2_1_debug.sessionApiBaseURL?.absoluteString, "https://dev.22duck.cn/open/api/v1")
-        XCTAssertNil(RealtimeModel.x2_1.sessionApiBaseURL)
-        XCTAssertNil(RealtimeModel.x2_1_trtc.sessionApiBaseURL)
     }
 
     func testContextNormalizesPromptAndReferencePath() {
@@ -121,7 +115,6 @@ final class RealtimeModelTests: XCTestCase {
     func testRealtimeEnumRawValuesMatchCrossPlatformContract() {
         XCTAssertEqual(RealtimeModel.x2_1.rawValue, "x2.1")
         XCTAssertEqual(RealtimeModel.x2_1_trtc.rawValue, "x2.1-trtc")
-        XCTAssertEqual(RealtimeModel.x2_1_debug.rawValue, "x2.1-debug")
         XCTAssertEqual(RealtimeConnectionState.generating.rawValue, "Generating")
         XCTAssertEqual(RealtimeNetworkQualityLevel.veryBad.rawValue, "VeryBad")
         XCTAssertEqual(RealtimePerformanceStatus.recovered.rawValue, "Recovered")
