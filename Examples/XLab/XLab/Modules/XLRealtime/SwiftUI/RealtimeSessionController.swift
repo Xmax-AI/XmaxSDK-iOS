@@ -98,7 +98,6 @@ final class RealtimeSessionController: ObservableObject {
         realtimeManager = client.createRealtimeManager(
             options: RealtimeConfiguration(
                 model: RealtimePreferences.selectedModel,
-                rtcProvider: RealtimePreferences.selectedRtcProvider,
                 isFrameInterpolationEnabled: initialFrameInterpolationEnabled
             )
         )

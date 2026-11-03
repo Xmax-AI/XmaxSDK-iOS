@@ -18,15 +18,13 @@ let package = Package(
         .library(name: "XmaxSDK", targets: ["XmaxSDK"])
     ],
     dependencies: [
-        .package(url: "https://github.com/AgoraIO/AgoraRtcEngine_iOS.git", exact: "4.6.4"),
-        .package(url: "https://github.com/Tencent-RTC/TRTC_SwiftPM.git", exact: "13.6.21648")
+        .package(url: "https://github.com/AgoraIO/AgoraRtcEngine_iOS.git", exact: "4.6.4")
     ],
     targets: [
         .target(
             name: "XmaxSDK",
             dependencies: [
                 .product(name: "RtcBasic", package: "AgoraRtcEngine_iOS"),
-                .product(name: "TRTC_SwiftPM", package: "TRTC_SwiftPM"),
                 "QCloudCore",
                 "QCloudCOSXML"
             ],

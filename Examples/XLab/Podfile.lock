@@ -7,15 +7,12 @@ PODS:
   - QCloudCOSXML/Transfer (6.5.7):
     - QCloudCore/WithoutMTA (= 6.5.7)
   - SnapKit (5.7.1)
-  - TXLiteAVSDK_TRTC/TRTC (13.6.21648)
   - XmaxSDK (1.1.0):
     - AgoraRtcEngine_iOS/RtcBasic (= 4.6.4)
     - QCloudCOSXML/Transfer (= 6.5.7)
-    - TXLiteAVSDK_TRTC/TRTC (= 13.6.21648)
   - XmaxSDK/Tests (1.1.0):
     - AgoraRtcEngine_iOS/RtcBasic (= 4.6.4)
     - QCloudCOSXML/Transfer (= 6.5.7)
-    - TXLiteAVSDK_TRTC/TRTC (= 13.6.21648)
 
 DEPENDENCIES:
   - Kingfisher (= 8.10.0)
@@ -31,7 +28,6 @@ SPEC REPOS:
     - QCloudCore
     - QCloudCOSXML
     - SnapKit
-    - TXLiteAVSDK_TRTC
 
 EXTERNAL SOURCES:
   XmaxSDK:
@@ -44,8 +40,7 @@ SPEC CHECKSUMS:
   QCloudCore: ff21b867b51f1d7e043c5013a3f876cd29bdca63
   QCloudCOSXML: 35ef870a55a58d193eeb62c37c8904630740480e
   SnapKit: d612e99e678a2d3b95bf60b0705ed0a35c03484a
-  TXLiteAVSDK_TRTC: 2c9b12952f959b2304ef86bce9665013fc62633f
-  XmaxSDK: 3dc78206427bbcf2f891edded3a08d78d722d1e6
+  XmaxSDK: 7645332c40885556195466605d7f27cc0cab8535
 
 PODFILE CHECKSUM: 93f049c18f35e1772c7ff09d1d75bbb3437eddae
 

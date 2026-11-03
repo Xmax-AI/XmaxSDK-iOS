@@ -48,8 +48,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
                     RoomJoinConfiguration(
                         roomID: "room-id",
                         userID: "user-id",
-                        credentials: .agora(token: "room-token"),
-                        signalingUserID: "bot-user"
+                        token: "room-token"
                     )
                 ),
                 .publishLocalVideo,
@@ -204,8 +203,7 @@ final class XmaxRealtimeConnectionManagerTests: XCTestCase {
                     RoomJoinConfiguration(
                         roomID: "room-id",
                         userID: "user-id",
-                        credentials: .agora(token: "room-token"),
-                        signalingUserID: "bot-user"
+                        token: "room-token"
                     )
                 ),
                 .publishLocalVideo,

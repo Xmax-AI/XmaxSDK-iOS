@@ -64,12 +64,12 @@ struct RoomMessageDecoder {
     /// The aggregate retained UTF-8 bytes across incomplete messages.
     private var bytes = 0
 
-    /// Decodes plain JSON or completed, possibly out-of-order Agora/TRTC fragments.
+    /// Decodes plain JSON or completed, possibly out-of-order Agora fragments.
     mutating func decode(sender: String, data: Data) -> Message? {
         guard data.count <= 262144,
             let message = try? JSONDecoder().decode(Message.self, from: data)
         else { return nil }
-        guard message.event == "__trtc_chunk__" || message.event == "__agora_chunk__" else {
+        guard message.event == "__agora_chunk__" else {
             return message
         }
         guard let eventID = message.eventId, !eventID.isEmpty,

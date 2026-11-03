@@ -290,23 +290,6 @@ let remoteStream = try await realtime.startGeneration(
 videoView.remoteTrack = remoteStream.videoTrack
 ```
 
-Select the RTC provider when creating the manager. It defaults to `.agora` and cannot
-change during the manager's lifetime:
-
-```swift
-let realtime = client.createRealtimeManager(
-    options: RealtimeConfiguration(model: .x2_1_trtc, rtcProvider: .trtc)
-)
-```
-
-The SDK does not restrict model/provider combinations. Session creation sends the model
-unchanged; the selected RTC provider determines the local transport and credential validation.
-If the service rejects the model or returns credentials incompatible with the selected
-provider, generation fails through the existing error path without switching providers.
-TRTC uplink dimensions are fitted within a 1920-pixel long edge and 1080-pixel short
-edge, with 8-pixel alignment. This transport limit does not change the local media
-or requested generation canvas.
-
 Generation commands (`start`, `change_condition`, and `change_target_size`) carry a stable
 `xid` and retry in the background at 0/300/1000 and 3000/3300/4000 ms. Matching
 `xid_ack` receipts stop retries; missing receipts stop retries after six seconds with a
@@ -436,7 +419,6 @@ local video files.
 ## Dependencies
 
 - <ins><strong>Agora RTC SDK for iOS</strong></ins> enables low-latency, real-time audio and video communication.
-- <ins><strong>Tencent Cloud TRTC SDK for iOS</strong></ins> provides an alternative realtime audio and video transport.
 - <ins><strong>Tencent Cloud COS SDK</strong></ins> handles media upload and download via object storage.
 
 <br>

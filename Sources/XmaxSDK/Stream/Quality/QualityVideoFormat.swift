@@ -47,38 +47,26 @@ enum QualityVideoFormat {
     ///   - level: The target quality level.
     ///   - downlink: Whether this is downlink. Downlink uses 24 fps; uplink does not exceed the
     ///     baseline rate.
-    ///   - minimumInputPixels: The minimum uplink area, in pixels; bounded by encoder limits.
-    ///   - provider: The RTC encoder constraints applied only to uplink.
+    ///   - minimumInputPixels: The minimum uplink area, in pixels; ignored for downlink.
     ///
-    /// - Returns: The resolved transport format. Uplink respects the provider's alignment and size limits.
+    /// - Returns: The resolved transport format; uplink dimensions are multiples of 4.
     static func resolve(
         _ baseline: RealtimeVideoFormat,
         level: RealtimeQualityLevel,
         downlink: Bool,
-        minimumInputPixels: Int = 0,
-        provider: RtcProvider = .agora
+        minimumInputPixels: Int = 0
     ) -> RealtimeVideoFormat {
         let index = level.rawValue - 1
         let scale = sizeScale(
             baseline,
             level: level
         )
-        var size = scaledSize(
+        let size = scaledSize(
             baseline.size,
             scale: scale,
-            alignment: downlink ? 2 : provider.encodingAlignment,
+            alignment: downlink ? 2 : 4,
             minimumPixels: downlink ? 0 : minimumInputPixels
         )
-        if !downlink, let longEdge = provider.maximumEncodingLongEdge,
-            let shortEdge = provider.maximumEncodingShortEdge
-        {
-            let limitScale = min(
-                1,
-                Double(longEdge) / max(size.width, size.height),
-                Double(shortEdge) / min(size.width, size.height)
-            )
-            size = scaledSize(size, scale: limitScale, alignment: provider.encodingAlignment)
-        }
         return RealtimeVideoFormat(
             width: Int(size.width),
             height: Int(size.height),

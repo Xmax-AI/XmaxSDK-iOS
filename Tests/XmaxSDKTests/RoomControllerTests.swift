@@ -49,8 +49,7 @@ final class RoomControllerTests: XCTestCase {
                     RoomJoinConfiguration(
                         roomID: "room-id",
                         userID: "user-id",
-                        credentials: .agora(token: "room-token"),
-                        signalingUserID: "bot-user"
+                        token: "room-token"
                     )
                 ),
                 .leaveRoom
@@ -111,8 +110,7 @@ final class RoomControllerTests: XCTestCase {
                     RoomJoinConfiguration(
                         roomID: "room-id",
                         userID: "user-id",
-                        credentials: .agora(token: "room-token"),
-                        signalingUserID: "bot-user"
+                        token: "room-token"
                     )
                 ),
                 .leaveRoom

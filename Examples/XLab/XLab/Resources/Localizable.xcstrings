@@ -611,23 +611,6 @@
         }
       }
     },
-    "feed.rtc.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose your RTC"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择 RTC"
-          }
-        }
-      }
-    },
     "feed.open" : {
       "extractionState" : "manual",
       "localizations" : {

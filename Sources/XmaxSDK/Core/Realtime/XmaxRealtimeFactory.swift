@@ -57,7 +57,7 @@ enum XmaxRealtimeFactory {
         apiService: any ApiServicing
     ) -> XmaxRealtimeComponents {
         let errorManager = XmaxRealtimeErrorManager()
-        let rtcManager = RtcManager(provider: options.rtcProvider)
+        let rtcManager = RtcManager()
         let mediaService = MediaService(model: options.model)
         let timing = RealtimeTiming()
 
@@ -77,7 +77,6 @@ enum XmaxRealtimeFactory {
 
         let streamController = StreamController(
             rtcManager: rtcManager,
-            rtcProvider: options.rtcProvider,
             timing: timing,
             errorListener: {
                 errorManager.forward(
@@ -118,7 +117,7 @@ enum XmaxRealtimeFactory {
             interactionController: mediaController,
             renderController: renderController,
             streamController: streamController,
-            sessionService: RealtimeSessionService(apiService: apiService, provider: options.rtcProvider),
+            sessionService: RealtimeSessionService(apiService: apiService),
             mediaService: mediaService,
             timing: timing
         )

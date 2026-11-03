@@ -16,9 +16,6 @@ struct QualityHistory {
     /// The model identifier isolating quality history.
     let model: String
 
-    /// The RTC provider whose measurements produced the levels.
-    var provider: RtcProvider = .agora
-
     /// The preferences storing levels and timestamps.
     var defaults: UserDefaults = .standard
 
@@ -72,6 +69,6 @@ struct QualityHistory {
     private func key(
         _ downlink: Bool
     ) -> String {
-        "xmax.quality.\(provider.rawValue).\(model).\(downlink ? "downlink" : "uplink")"
+        "xmax.quality.agora.\(model).\(downlink ? "downlink" : "uplink")"
     }
 }

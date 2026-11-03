@@ -435,8 +435,7 @@ actor XmaxRealtimeConnectionManager {
                     configuration.baseline,
                     level: level,
                     downlink: false,
-                    minimumInputPixels: configuration.minimumInputPixels,
-                    provider: configuration.provider
+                    minimumInputPixels: configuration.minimumInputPixels
                 )
                 try streamController.setVideoEncoderConfig(format)
             }

@@ -87,7 +87,6 @@ final class StreamController: StreamControlling, RtcEventListener,
     ///   - generationTiming: The result stream confirmation timeout.
     convenience init(
         rtcManager: any RtcManaging,
-        rtcProvider: RtcProvider = .agora,
         timing: RealtimeTiming = RealtimeTiming(),
         errorListener: @escaping XmaxErrorListener = { _ in
         },
@@ -102,7 +101,7 @@ final class StreamController: StreamControlling, RtcEventListener,
                 timing: timing
             ),
             encodingController: EncodingController(rtcManager: rtcManager),
-            qualityController: QualityController(rtcManager: rtcManager, provider: rtcProvider),
+            qualityController: QualityController(rtcManager: rtcManager),
             timing: timing,
             errorListener: errorListener,
             remoteStreamListener: remoteStreamListener,

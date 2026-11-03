@@ -16,19 +16,14 @@ final class RtcEngineLease: @unchecked Sendable {
     /// The leased platform engine.
     let engine: any RtcPlatform
 
-    /// Releases the native engine belonging to this lease.
-    let destroy: @Sendable () -> Void
-
     /// The unique lease identifier.
     let id = UUID()
 
     /// Creates an exclusive engine lease.
     fileprivate init(
-        engine: any RtcPlatform,
-        destroy: @escaping @Sendable () -> Void
+        engine: any RtcPlatform
     ) {
         self.engine = engine
-        self.destroy = destroy
     }
 }
 
@@ -51,10 +46,10 @@ actor RtcEngineManager {
     private let appID: String
 
     /// The factory invoked after exclusive access is obtained.
-    private let makeEngine: EngineFactory?
+    private let makeEngine: EngineFactory
 
     /// The destructor invoked when a lease is released.
-    private let destroyEngine: EngineDestructor?
+    private let destroyEngine: EngineDestructor
 
     /// The active exclusive lease.
     private var activeLease: RtcEngineLease?
@@ -65,8 +60,8 @@ actor RtcEngineManager {
     /// Creates an engine lease manager.
     init(
         appID: String = RtcEngineManager.defaultAppID,
-        makeEngine: EngineFactory? = nil,
-        destroyEngine: EngineDestructor? = nil
+        makeEngine: @escaping EngineFactory = AgoraRtcPlatform.create,
+        destroyEngine: @escaping EngineDestructor = AgoraRtcPlatform.destroyEngine
     ) {
         self.appID = appID
         self.makeEngine = makeEngine
@@ -78,13 +73,11 @@ actor RtcEngineManager {
     /// - Returns: The exclusive lease held by this call.
     ///
     /// - Throws: An error if cancelled, the application ID is invalid, or engine creation fails.
-    func acquire(
-        provider: RtcProvider = .agora
-    ) async throws -> RtcEngineLease {
+    func acquire() async throws -> RtcEngineLease {
         try Task.checkCancellation()
 
         if activeLease == nil, requests.isEmpty {
-            let lease = try createLease(provider: provider)
+            let lease = try createLease()
             if Task.isCancelled {
                 releaseActiveLease(lease)
                 throw CancellationError()
@@ -97,7 +90,7 @@ actor RtcEngineManager {
         let requestID = UUID()
         let lease: RtcEngineLease = try await withTaskCancellationHandler(
             operation: {
-                try await self.enqueueRequest(id: requestID, provider: provider)
+                try await self.enqueueRequest(id: requestID)
             },
             onCancel: {
                 Task {
@@ -132,28 +125,24 @@ actor RtcEngineManager {
     /// - Returns: The new engine lease.
     ///
     /// - Throws: An error if the application ID is empty or engine creation fails.
-    private func createLease(
-        provider: RtcProvider
-    ) throws -> RtcEngineLease {
+    private func createLease() throws -> RtcEngineLease {
         let normalizedAppID = appID.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        guard provider == .trtc || !normalizedAppID.isEmpty else {
+        guard !normalizedAppID.isEmpty else {
             throw XmaxError(
                 code: .rtcError,
                 message: "RTC App ID cannot be empty"
             )
         }
-        let factory = makeEngine ?? (provider == .agora ? AgoraRtcPlatform.create : TrtcRtcPlatform.create)
-        let destructor = destroyEngine ?? (provider == .agora ? AgoraRtcPlatform.destroyEngine : TrtcRtcPlatform.destroyEngine)
-        guard let engine = factory(normalizedAppID) else {
+        guard let engine = makeEngine(normalizedAppID) else {
             throw XmaxError(
                 code: .rtcError,
                 message: "Failed to create RTC Engine"
             )
         }
 
-        return RtcEngineLease(engine: engine, destroy: destructor)
+        return RtcEngineLease(engine: engine)
     }
 
     /// Destroys the engine for an active lease and serves pending requests.
@@ -167,7 +156,7 @@ actor RtcEngineManager {
         }
 
         activeLease = nil
-        lease.destroy()
+        destroyEngine()
         fulfillNextRequest()
     }
 
@@ -177,7 +166,7 @@ actor RtcEngineManager {
             let request = requests.removeFirst()
 
             do {
-                let lease = try createLease(provider: request.provider)
+                let lease = try createLease()
                 activeLease = lease
                 request.continuation.resume(returning: lease)
             } catch {
@@ -194,8 +183,7 @@ actor RtcEngineManager {
     ///
     /// - Throws: An error if the request is cancelled or engine creation fails.
     private func enqueueRequest(
-        id: UUID,
-        provider: RtcProvider
+        id: UUID
     ) async throws -> RtcEngineLease {
         try await withCheckedThrowingContinuation {
             (continuation: CheckedContinuation<RtcEngineLease, any Error>) in
@@ -207,7 +195,6 @@ actor RtcEngineManager {
             requests.append(
                 Request(
                     id: id,
-                    provider: provider,
                     continuation: continuation
                 )
             )
@@ -241,9 +228,6 @@ private extension RtcEngineManager {
 
         /// The lease request identifier.
         let id: UUID
-
-        /// The provider requested by this waiter.
-        let provider: RtcProvider
 
         /// The continuation awaiting engine ownership.
         let continuation: CheckedContinuation<RtcEngineLease, any Error>

@@ -13,8 +13,8 @@ import XCTest
 @testable import XmaxSDK
 
 final class RealtimeModelTests: XCTestCase {
-    func testX21ModelsAreAvailable() {
-        XCTAssertEqual(RealtimeModel.allCases, [.x2_1, .x2_1_trtc])
+    func testOnlyX21ModelIsAvailable() {
+        XCTAssertEqual(RealtimeModel.allCases, [.x2_1])
         XCTAssertNil(RealtimeModel(rawValue: "x2.0"))
         XCTAssertNil(RealtimeModel(rawValue: "x2.1.1-preview-cn"))
         XCTAssertNil(RealtimeModel(rawValue: "x2.1.1-preview-us"))
@@ -22,8 +22,8 @@ final class RealtimeModelTests: XCTestCase {
 
     func testX21ModelCameraFormats() {
         let models = RealtimeModel.allCases
-        XCTAssertEqual(models.map(\.rawValue), ["x2.1", "x2.1-trtc"])
-        XCTAssertEqual(models.map(\.displayName), ["X2.1", "X2.1 TRTC"])
+        XCTAssertEqual(models.map(\.rawValue), ["x2.1"])
+        XCTAssertEqual(models.map(\.displayName), ["X2.1"])
 
         for model in models {
             XCTAssertEqual(model.defaultFrameRate, 30)
@@ -114,7 +114,6 @@ final class RealtimeModelTests: XCTestCase {
 
     func testRealtimeEnumRawValuesMatchCrossPlatformContract() {
         XCTAssertEqual(RealtimeModel.x2_1.rawValue, "x2.1")
-        XCTAssertEqual(RealtimeModel.x2_1_trtc.rawValue, "x2.1-trtc")
         XCTAssertEqual(RealtimeConnectionState.generating.rawValue, "Generating")
         XCTAssertEqual(RealtimeNetworkQualityLevel.veryBad.rawValue, "VeryBad")
         XCTAssertEqual(RealtimePerformanceStatus.recovered.rawValue, "Recovered")

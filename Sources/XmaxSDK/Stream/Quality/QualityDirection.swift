@@ -22,9 +22,6 @@ struct QualityDirection: Sendable {
     /// The minimum uplink area, in pixels; ignored for downlink.
     let minimumInputPixels: Int
 
-    /// The transport whose encoding constraints apply to uplink.
-    let provider: RtcProvider
-
     /// The current quality level.
     private(set) var level: RealtimeQualityLevel
 
@@ -58,11 +55,9 @@ struct QualityDirection: Sendable {
         baseline: RealtimeVideoFormat,
         level: RealtimeQualityLevel,
         downlink: Bool,
-        minimumInputPixels: Int = 0,
-        provider: RtcProvider = .agora
+        minimumInputPixels: Int = 0
     ) {
         self.baseline = baseline
-        self.provider = provider
         self.downlink = downlink
         self.minimumInputPixels = minimumInputPixels
         self.level = level
@@ -90,8 +85,7 @@ struct QualityDirection: Sendable {
             baseline,
             level: level,
             downlink: downlink,
-            minimumInputPixels: minimumInputPixels,
-            provider: provider
+            minimumInputPixels: minimumInputPixels
         )
     }
 

@@ -802,7 +802,6 @@ final class RealtimeViewController: UIViewController, UIGestureRecognizerDelegat
         return client.createRealtimeManager(
             options: RealtimeConfiguration(
                 model: RealtimePreferences.selectedModel,
-                rtcProvider: RealtimePreferences.selectedRtcProvider,
                 isFrameInterpolationEnabled:
                     Self.initialFrameInterpolationEnabled
             )

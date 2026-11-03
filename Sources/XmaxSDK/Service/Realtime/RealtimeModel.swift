@@ -17,17 +17,9 @@ public enum RealtimeModel: String, CaseIterable, Sendable {
     /// The X2.1 realtime generation model.
     case x2_1 = "x2.1"
 
-    /// The X2.1 TRTC model, sharing X2.1 media settings. Select the RTC provider separately.
-    case x2_1_trtc = "x2.1-trtc"
-
     /// The model's display name.
     public var displayName: String {
-        switch self {
-        case .x2_1:
-            "X2.1"
-        case .x2_1_trtc:
-            "X2.1 TRTC"
-        }
+        "X2.1"
     }
 
     /// The supported frame dimensions and recommended frame rates.

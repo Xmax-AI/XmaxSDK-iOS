@@ -113,8 +113,7 @@ actor RoomController: RoomControlling {
                 configuration: RoomJoinConfiguration(
                     roomID: connection.roomID,
                     userID: connection.userID,
-                    credentials: connection.credentials,
-                    signalingUserID: connection.botName
+                    token: connection.token
                 )
             )
             timing.finishRoomJoin()

@@ -25,17 +25,13 @@ struct QualityConfiguration: Sendable {
     /// The minimum uplink area, in pixels.
     let minimumInputPixels: Int
 
-    /// The RTC provider whose native encoder constrains uplink dimensions.
-    var provider: RtcProvider = .agora
-
     /// The encoding format for the current uplink level.
     var uplink: RealtimeVideoFormat {
         QualityVideoFormat.resolve(
             baseline,
             level: uplinkLevel,
             downlink: false,
-            minimumInputPixels: minimumInputPixels,
-            provider: provider
+            minimumInputPixels: minimumInputPixels
         )
     }
 

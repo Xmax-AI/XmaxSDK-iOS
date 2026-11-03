@@ -21,9 +21,6 @@ final class RtcManager: RtcManaging, @unchecked Sendable {
     /// The exclusive engine lease provider.
     private let engineManager: RtcEngineManager
 
-    /// The provider fixed at manager creation.
-    private let provider: RtcProvider
-
     /// The room join timeout, in nanoseconds.
     private let joinTimeout: UInt64
 
@@ -63,11 +60,9 @@ final class RtcManager: RtcManaging, @unchecked Sendable {
     ///   - joinTimeoutNanoseconds: The room join timeout, in nanoseconds.
     init(
         engineManager: RtcEngineManager = .shared,
-        provider: RtcProvider = .agora,
         joinTimeoutNanoseconds: UInt64 = RtcManager.joinTimeoutNanoseconds
     ) {
         self.engineManager = engineManager
-        self.provider = provider
         joinTimeout = joinTimeoutNanoseconds
     }
 
@@ -93,7 +88,7 @@ final class RtcManager: RtcManaging, @unchecked Sendable {
             let initialization = Initialization(
                 id: UUID(),
                 task: Task {
-                    try await engineManager.acquire(provider: provider)
+                    try await engineManager.acquire()
                 },
                 waiterIDs: [waiterID]
             )
@@ -259,9 +254,6 @@ final class RtcManager: RtcManaging, @unchecked Sendable {
     func joinRoom(
         configuration: RoomJoinConfiguration
     ) async throws {
-        guard configuration.credentials.provider == provider else {
-            throw XmaxError(code: .invalidConfiguration, message: "RTC credentials do not match the selected provider")
-        }
         guard !configuration.roomID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
             !configuration.userID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {

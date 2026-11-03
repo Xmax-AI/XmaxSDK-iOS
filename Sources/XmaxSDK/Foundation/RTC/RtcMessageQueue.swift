@@ -10,7 +10,7 @@
 
 import Foundation
 
-/// Encodes signaling into provider-specific packets for server reassembly.
+/// Encodes signaling into Agora data-stream packets for server reassembly.
 enum RtcMessageCodec {
 
     /// Encodes UTF-8 signaling as one packet or reassemblable JSON fragments.
@@ -21,8 +21,7 @@ enum RtcMessageCodec {
     ///
     /// - Throws: An error if the message is empty, exceeds limits, or cannot be encoded.
     static func encode(
-        _ message: String,
-        provider: RtcProvider = .agora
+        _ message: String
     ) throws -> [Data] {
         let bytes = Data(message.utf8)
         guard !bytes.isEmpty, bytes.count <= 256 * 1024 else {
@@ -68,7 +67,6 @@ enum RtcMessageCodec {
         return try chunks.enumerated().map { index, chunk in
             try JSONEncoder().encode(
                 Fragment(
-                    event: provider == .agora ? "__agora_chunk__" : "__trtc_chunk__",
                     eventId: eventID,
                     index: index,
                     count: chunks.count,
@@ -82,7 +80,7 @@ enum RtcMessageCodec {
     private struct Fragment: Encodable {
 
         /// The signaling fragmentation event name.
-        let event: String
+        let event = "__agora_chunk__"
 
         /// The identifier associating fragments of one message.
         let eventId: String
@@ -113,9 +111,6 @@ final class RtcMessageQueue: @unchecked Sendable {
     /// The packet and byte rate limiter.
     private let limiter: RateLimiter
 
-    /// The transport determining message framing and quotas.
-    private let provider: RtcProvider
-
     /// The lock protecting tasks, coalescing, and closure state.
     private let lock = NSLock()
 
@@ -136,14 +131,12 @@ final class RtcMessageQueue: @unchecked Sendable {
 
     /// Creates an ordered, rate-limited signaling queue.
     init(
-        provider: RtcProvider = .agora,
         beforeSend: @escaping @Sendable () async throws -> Void = {},
         send: @escaping @Sendable (Data) throws -> Void,
         onFailure: @escaping @Sendable (XmaxError) -> Void
     ) {
-        self.provider = provider
         self.beforeSend = beforeSend
-        self.limiter = RateLimiter(provider: provider)
+        self.limiter = RateLimiter()
         self.send = send
         self.onFailure = onFailure
     }
@@ -164,7 +157,7 @@ final class RtcMessageQueue: @unchecked Sendable {
         reportFailure: Bool = true,
         replacingPendingMessage key: String? = nil
     ) throws -> Task<Void, any Error> {
-        let packets = try RtcMessageCodec.encode(message, provider: provider)
+        let packets = try RtcMessageCodec.encode(message)
         return try lock.withLock {
             guard !closed else {
                 throw CancellationError()
@@ -399,22 +392,14 @@ private extension RtcMessageQueue {
         }
     }
 
-    /// A sliding-window limiter with headroom below each transport's packet and byte quotas.
+    /// A sliding-window limiter with headroom below Agora packet and byte quotas.
     actor RateLimiter {
 
         /// The maximum number of messages submitted per second.
-        let packetLimit: Int
+        let packetLimit = 58
 
         /// The maximum payload bytes submitted per second.
-        let byteLimit: Int
-
-        /// Creates transport-specific quotas, including headroom for native accounting.
-        init(
-            provider: RtcProvider = .agora
-        ) {
-            packetLimit = provider == .agora ? 58 : 28
-            byteLimit = provider == .agora ? 29000 : 7500
-        }
+        let byteLimit = 29000
 
         /// The send timestamps and byte counts in the current window.
         var sent: [(time: UInt64, bytes: Int)] = []
