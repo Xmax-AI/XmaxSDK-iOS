@@ -970,7 +970,6 @@ actor XmaxRealtimeManager: XmaxRealtimeManaging {
                 ),
                 token: token
             )
-            await connectionManager.startHeartbeat(sessionID: sessionID)
             timing.finish(taskID: taskID)
         } catch {
             await mediaController.setLocalAudioPreviewMuted(false)

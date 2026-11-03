@@ -132,6 +132,9 @@ actor XmaxRealtimeLifecycleManager {
     /// The manager that logs errors and forwards runtime failures.
     private let errorManager: XmaxRealtimeErrorManager
 
+    /// The internal hook invoked after committing state and before notifying the app.
+    private let onStateChanged: (@Sendable (RealtimeState) async -> Void)?
+
     /// The handler that releases resources for a termination scope.
     private let cleanup: CleanupHandler
 
@@ -158,9 +161,11 @@ actor XmaxRealtimeLifecycleManager {
     /// Creates a realtime lifecycle coordinator.
     init(
         errorManager: XmaxRealtimeErrorManager,
+        onStateChanged: (@Sendable (RealtimeState) async -> Void)? = nil,
         cleanup: @escaping CleanupHandler
     ) {
         self.errorManager = errorManager
+        self.onStateChanged = onStateChanged
         self.cleanup = cleanup
     }
 
@@ -996,12 +1001,16 @@ private extension XmaxRealtimeLifecycleManager {
             {
                 finish(activeOperation)
             }
-            let listener = state != finalState ? stateListener : nil
+            let stateChanged = state != finalState
+            let listener = stateChanged ? stateListener : nil
             state = finalState
             termination = nil
             errorManager.invalidatePendingFailures(target: requestedTarget)
 
-            if let listener {
+            if stateChanged, let onStateChanged {
+                await onStateChanged(finalState)
+            }
+            if state == finalState, let listener {
                 await listener(finalState)
             }
             if let error = pending.error {
@@ -1037,6 +1046,13 @@ private extension XmaxRealtimeLifecycleManager {
         }
 
         state = nextState
+        if let onStateChanged {
+            await onStateChanged(nextState)
+        }
+        // The internal hook can suspend while a newer transition commits.
+        guard state == nextState else {
+            return
+        }
         if let stateListener {
             await stateListener(nextState)
         }

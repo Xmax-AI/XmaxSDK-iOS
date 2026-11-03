@@ -26,6 +26,12 @@ final class FeedViewController: UIViewController, UIGestureRecognizerDelegate {
     private var isPickingMedia = false
     private var pendingMediaSelectionKind: MediaSelectionKind?
 
+    // 首页可见且应用处于前台时刷新当前 API Key 的积分。
+    private let creditBalance = FeedCreditBalancePoller()
+    private var modelRegistryView: FeedModelRegistryCardView?
+    private var isFeedVisible = false
+    private var isApplicationActive = UIApplication.shared.applicationState == .active
+
     // 界面语言
     private var displayedLanguageCode = XLLocalization.languageCode
 
@@ -64,6 +70,9 @@ final class FeedViewController: UIViewController, UIGestureRecognizerDelegate {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        creditBalance.onChange = { [weak self] state in
+            self?.modelRegistryView?.displayCreditBalance(state)
+        }
         configureBackgroundGlow()
         configureScrollView()
         populateFeed()
@@ -73,6 +82,12 @@ final class FeedViewController: UIViewController, UIGestureRecognizerDelegate {
             self,
             selector: #selector(refreshLanguage),
             name: XLLocalization.didChangeNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(pauseCreditBalance),
+            name: UIApplication.willResignActiveNotification,
             object: nil
         )
         NotificationCenter.default.addObserver(
@@ -88,7 +103,34 @@ final class FeedViewController: UIViewController, UIGestureRecognizerDelegate {
         navigationController?.setNavigationBarHidden(true, animated: animated)
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        isFeedVisible = true
+        refreshCreditBalance()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        isFeedVisible = false
+        refreshCreditBalance()
+    }
+
+    @objc private func pauseCreditBalance() {
+        isApplicationActive = false
+        refreshCreditBalance()
+    }
+
+    private func refreshCreditBalance() {
+        creditBalance.update(
+            apiKey: UserDefaults.standard.string(forKey: RealtimePreferences.apiKeyStorageKey) ?? "",
+            environment: RealtimePreferences.environment,
+            isActive: isFeedVisible && isApplicationActive
+        )
+    }
+
     @objc private func refreshSystemLanguage() {
+        isApplicationActive = true
+        refreshCreditBalance()
         guard displayedLanguageCode != XLLocalization.languageCode else { return }
         refreshLanguage()
     }
@@ -104,6 +146,7 @@ final class FeedViewController: UIViewController, UIGestureRecognizerDelegate {
         displayedLanguageCode = XLLocalization.languageCode
         populateFeed()
         performNetworkPreflight()
+        refreshCreditBalance()
 
         view.layoutIfNeeded()
         let minimumOffset = -scrollView.adjustedContentInset.top
@@ -161,6 +204,9 @@ final class FeedViewController: UIViewController, UIGestureRecognizerDelegate {
         contentStack.addArrangedSubview(makeMetrics())
         contentStack.addArrangedSubview(feedFixedSpacer(height: 14))
         let modelRegistry = FeedModelRegistryCardView()
+        modelRegistryView = modelRegistry
+        modelRegistry.onAPIKeyChange = { [weak self] in self?.refreshCreditBalance() }
+        modelRegistry.displayCreditBalance(creditBalance.state)
         contentStack.addArrangedSubview(modelRegistry)
         contentStack.addArrangedSubview(feedFixedSpacer(height: 30))
         contentStack.addArrangedSubview(

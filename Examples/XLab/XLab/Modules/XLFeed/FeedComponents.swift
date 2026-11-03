@@ -238,6 +238,33 @@ final class FeedRuntimeMetricView: UIView {
 
 final class FeedModelRegistryCardView: FeedCardView, UITextFieldDelegate {
     private static let apiKeyStorageKey = "xlab.realtime.apiKey"
+    var onAPIKeyChange: (() -> Void)?
+
+    private let creditTitle = makeFeedLabel(XLLocalization.text("feed.credits"), size: 10, color: FeedPalette.secondaryText)
+    private let creditValue = makeFeedLabel("—", size: 11, weight: .medium, color: FeedPalette.mint)
+    private lazy var creditSpinner: UIActivityIndicatorView = {
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.color = FeedPalette.mint
+        spinner.hidesWhenStopped = true
+        spinner.transform = CGAffineTransform(scaleX: 0.6, y: 0.6)
+        return spinner
+    }()
+    private lazy var creditPill: UIView = {
+        let content = feedHorizontalStack([creditTitle, creditValue, creditSpinner], spacing: 6)
+        let pill = feedPillContainer(
+            content: content, height: 26, horizontalPadding: 10,
+            backgroundColor: FeedPalette.mint.withAlphaComponent(0.07)
+        )
+        pill.layer.borderColor = FeedPalette.mint.withAlphaComponent(0.14).cgColor
+        pill.isAccessibilityElement = true
+        pill.accessibilityIdentifier = "feed.creditBalance"
+        content.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        pill.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        creditValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        creditValue.adjustsFontSizeToFitWidth = true
+        creditValue.minimumScaleFactor = 0.7
+        return pill
+    }()
 
     // 模型选择
     private var selectedModel = RealtimePreferences.selectedModel
@@ -343,6 +370,7 @@ final class FeedModelRegistryCardView: FeedCardView, UITextFieldDelegate {
             color: .feed(rgb: 0x7E8A9A),
             letterSpacing: 0.9
         )
+        let apiHeader = feedHorizontalStack([apiLabel, feedFlexibleSpacer(), creditPill])
         let passwordField = UIView()
         passwordField.translatesAutoresizingMaskIntoConstraints = false
         passwordField.backgroundColor = .feed(rgb: 0x080C12, alpha: 0.40)
@@ -371,14 +399,14 @@ final class FeedModelRegistryCardView: FeedCardView, UITextFieldDelegate {
         let helpRow = feedHorizontalStack([prompt, link], spacing: 4)
         helpRow.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        apiContainer.addSubview(apiLabel)
+        apiContainer.addSubview(apiHeader)
         apiContainer.addSubview(passwordField)
         apiContainer.addSubview(helpRow)
 
         passwordField.snp.makeConstraints { make in
             make.height.equalTo(40)
             make.horizontalEdges.equalToSuperview().inset(10)
-            make.top.equalTo(apiLabel.snp.bottom).offset(8)
+            make.top.equalTo(apiHeader.snp.bottom).offset(8)
         }
         apiKeyTextField.snp.makeConstraints { make in
             make.leading.equalToSuperview().offset(12)
@@ -390,9 +418,9 @@ final class FeedModelRegistryCardView: FeedCardView, UITextFieldDelegate {
             make.centerY.equalToSuperview()
             make.size.equalTo(20)
         }
-        apiLabel.snp.makeConstraints { make in
-            make.leading.top.equalToSuperview().offset(10)
-            make.trailing.lessThanOrEqualToSuperview().inset(10)
+        apiHeader.snp.makeConstraints { make in
+            make.top.equalToSuperview().offset(10)
+            make.horizontalEdges.equalToSuperview().inset(10)
         }
         helpRow.snp.makeConstraints { make in
             make.leading.equalToSuperview().offset(10)
@@ -434,6 +462,7 @@ final class FeedModelRegistryCardView: FeedCardView, UITextFieldDelegate {
         stack.snp.makeConstraints { make in
             make.edges.equalToSuperview().inset(18)
         }
+        displayCreditBalance(FeedCreditBalanceState())
     }
 
     required init?(coder: NSCoder) {
@@ -531,6 +560,21 @@ final class FeedModelRegistryCardView: FeedCardView, UITextFieldDelegate {
             apiKeyTextField.text ?? "",
             forKey: Self.apiKeyStorageKey
         )
+        onAPIKeyChange?()
+    }
+
+    func displayCreditBalance(_ state: FeedCreditBalanceState) {
+        let value = state.balance == nil && state.refreshFailed
+            ? XLLocalization.text("feed.credits.unavailable")
+            : formatFeedCreditBalance(state.balance)
+        creditValue.text = value
+        creditValue.textColor = state.refreshFailed ? FeedPalette.orange : FeedPalette.mint
+        let initialLoading = state.isLoading && state.balance == nil
+        creditValue.isHidden = initialLoading
+        if initialLoading { creditSpinner.startAnimating() } else { creditSpinner.stopAnimating() }
+        creditPill.accessibilityLabel = XLLocalization.text("feed.credits")
+        creditPill.accessibilityValue = initialLoading ? XLLocalization.text("feed.credits.loading") : value
+        creditPill.accessibilityHint = state.refreshFailed ? XLLocalization.text("feed.credits.refreshFailed") : nil
     }
 
     @objc private func toggleApiKeyVisibility() {

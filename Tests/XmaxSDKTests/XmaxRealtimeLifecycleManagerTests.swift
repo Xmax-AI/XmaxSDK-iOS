@@ -281,7 +281,20 @@ final class XmaxRealtimeLifecycleManagerTests: XCTestCase {
     }
 
     func testCompletionWaitsForTheOperationBodyToFinish() async throws {
-        let lifecycle = makeCoordinator(probe: XmaxRealtimeLifecycleManagerProbe())
+        let events = XmaxRealtimeLifecycleManagerEventRecorder()
+        let lifecycle = makeCoordinator(
+            probe: XmaxRealtimeLifecycleManagerProbe(),
+            onStateChanged: { state in
+                if state.connectionState == .generating {
+                    events.append("internal")
+                }
+            }
+        )
+        await lifecycle.setStateListener { state in
+            if state.connectionState == .generating {
+                events.append("listener")
+            }
+        }
         let gate = LifecycleFailureGate()
         let operation = Task {
             try await lifecycle.run(kind: .generation) { token in
@@ -292,10 +305,76 @@ final class XmaxRealtimeLifecycleManagerTests: XCTestCase {
         await waitUntil { await gate.isWaiting }
         let pending = await lifecycle.currentState
         XCTAssertEqual(pending.connectionState, .idle)
+        XCTAssertTrue(events.values.isEmpty)
         await gate.release()
         try await operation.value
         let completed = await lifecycle.currentState
         XCTAssertEqual(completed.connectionState, .generating)
+        XCTAssertEqual(events.values, ["internal", "listener"])
+    }
+
+    func testCancellationDiscardsStagedCompletionWithoutInvokingTheStateHook() async {
+        let events = XmaxRealtimeLifecycleManagerEventRecorder()
+        let lifecycle = makeCoordinator(
+            probe: XmaxRealtimeLifecycleManagerProbe(),
+            onStateChanged: { state in
+                if state.connectionState == .generating {
+                    events.append("generating")
+                }
+            }
+        )
+        let gate = LifecycleFailureGate()
+        let operation = Task {
+            try await lifecycle.run(kind: .generation, failureScope: .connection) { token in
+                try await lifecycle.complete(
+                    RealtimeState(connectionState: .generating, sessionID: "session"),
+                    token: token
+                )
+                await gate.wait()
+            }
+        }
+        await waitUntil { await gate.isWaiting }
+        operation.cancel()
+        await gate.release()
+        do {
+            try await operation.value
+            XCTFail("Expected cancellation before committing completion")
+        } catch {
+            XCTAssertEqual((error as? XmaxError)?.code, .cancelled)
+        }
+        XCTAssertTrue(events.values.isEmpty)
+        let state = await lifecycle.currentState
+        XCTAssertEqual(state.connectionState, .idle)
+    }
+
+    func testStateHookDoesNotPublishCompletionSupersededByTermination() async throws {
+        let gate = LifecycleFailureGate()
+        let lifecycle = makeCoordinator(
+            probe: XmaxRealtimeLifecycleManagerProbe(),
+            onStateChanged: { state in
+                if state.connectionState == .generating {
+                    await gate.wait()
+                }
+            }
+        )
+        var states: [RealtimeConnectionState] = []
+        await lifecycle.setStateListener { states.append($0.connectionState) }
+        let operation = Task {
+            try await lifecycle.run(kind: .generation) { token in
+                try await lifecycle.complete(
+                    RealtimeState(connectionState: .generating, sessionID: "session"),
+                    token: token
+                )
+            }
+        }
+        await waitUntil { await gate.isWaiting }
+        let committed = await lifecycle.currentState
+        XCTAssertEqual(committed.connectionState, .generating)
+        await lifecycle.terminate(.all)
+        await gate.release()
+        try await operation.value
+        XCTAssertFalse(states.contains(.generating))
+        XCTAssertEqual(states.last, .idle)
     }
 
     func testFailureDiscardsAStagedCompletion() async {
@@ -1177,10 +1256,12 @@ final class XmaxRealtimeLifecycleManagerTests: XCTestCase {
 
 private extension XmaxRealtimeLifecycleManagerTests {
     func makeCoordinator(
-        probe: XmaxRealtimeLifecycleManagerProbe
+        probe: XmaxRealtimeLifecycleManagerProbe,
+        onStateChanged: (@Sendable (RealtimeState) async -> Void)? = nil
     ) -> XmaxRealtimeLifecycleManager {
         XmaxRealtimeLifecycleManager(
             errorManager: XmaxRealtimeErrorManager(),
+            onStateChanged: onStateChanged,
             cleanup: { scope, _ in
                 await probe.recordCleanup(scope)
                 return XmaxRealtimeLifecycleManager.CleanupResult()

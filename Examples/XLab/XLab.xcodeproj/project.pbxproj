@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		94E1A0FF19F8BC2703AC07E1 /* FeedCreditBalanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504857DC8721568979A563CE /* FeedCreditBalanceTests.swift */; };
+		2926E3CDAB51DD9261790CF8 /* FeedCreditBalance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12332A997975C5AC8751B093 /* FeedCreditBalance.swift */; };
+		1206EA4321D6FE1A7257C6C6 /* FeedCreditBalance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12332A997975C5AC8751B093 /* FeedCreditBalance.swift */; };
 		100000000000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000001 /* AppDelegate.swift */; };
 		28F1950EE5506A70641AFF05 /* XLLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000002 /* XLLocalization.swift */; };
 		3193C81D3AC3D7AA2D0D381D /* RealtimeVideoRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F21000000000000000000013 /* RealtimeVideoRecorder.swift */; };
@@ -52,6 +55,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		504857DC8721568979A563CE /* FeedCreditBalanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCreditBalanceTests.swift; sourceTree = "<group>"; };
+		12332A997975C5AC8751B093 /* FeedCreditBalance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCreditBalance.swift; sourceTree = "<group>"; };
 		03208F0C1BE42E84BAFD2388 /* RealtimeVideoRecorderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RealtimeVideoRecorderTests.swift; sourceTree = "<group>"; };
 		200000000000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		200000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -125,6 +130,7 @@
 		3DA74101C805BC8303DAB27B /* XLabTests */ = {
 			isa = PBXGroup;
 			children = (
+				504857DC8721568979A563CE /* FeedCreditBalanceTests.swift */,
 				03208F0C1BE42E84BAFD2388 /* RealtimeVideoRecorderTests.swift */,
 			);
 			name = XLabTests;
@@ -222,6 +228,7 @@
 		C00000000000000000000003 /* XLFeed */ = {
 			isa = PBXGroup;
 			children = (
+				12332A997975C5AC8751B093 /* FeedCreditBalance.swift */,
 				D20000000000000000000002 /* FeedViewController.swift */,
 				D20000000000000000000003 /* FeedComponents.swift */,
 			);
@@ -504,6 +511,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2926E3CDAB51DD9261790CF8 /* FeedCreditBalance.swift in Sources */,
+				94E1A0FF19F8BC2703AC07E1 /* FeedCreditBalanceTests.swift in Sources */,
 				65CB29886238ED2DD546E818 /* RealtimeVideoRecorderTests.swift in Sources */,
 				3193C81D3AC3D7AA2D0D381D /* RealtimeVideoRecorder.swift in Sources */,
 				28F1950EE5506A70641AFF05 /* XLLocalization.swift in Sources */,
@@ -514,6 +523,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1206EA4321D6FE1A7257C6C6 /* FeedCreditBalance.swift in Sources */,
 				100000000000000000000001 /* AppDelegate.swift in Sources */,
 				B10000000000000000000001 /* SceneDelegate.swift in Sources */,
 				C10000000000000000000001 /* XLToast.swift in Sources */,

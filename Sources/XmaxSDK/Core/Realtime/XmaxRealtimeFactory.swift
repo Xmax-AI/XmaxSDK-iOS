@@ -166,6 +166,14 @@ enum XmaxRealtimeFactory {
     ) -> XmaxRealtimeComponents {
         let lifecycleManager = XmaxRealtimeLifecycleManager(
             errorManager: errorManager,
+            onStateChanged: { state in
+                guard state.connectionState == .generating,
+                    let sessionID = state.sessionID
+                else {
+                    return
+                }
+                await connectionManager.startHeartbeat(sessionID: sessionID)
+            },
             cleanup: { scope, taskID in
                 if scope == .generation {
                     do {

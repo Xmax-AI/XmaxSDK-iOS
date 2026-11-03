@@ -1372,6 +1372,7 @@ final class XmaxRealtimeManagerTests: XCTestCase {
                 roomID: "room-id",
                 userID: "bot-user"
             ))
+        await waitForRemoteFrameListener(rtcManager: components.rtcManager)
         try components.rtcManager.emitRemoteVideoFrame()
         try await firstStartTask.value
 
@@ -1406,6 +1407,7 @@ final class XmaxRealtimeManagerTests: XCTestCase {
                 roomID: "room-id",
                 userID: "bot-user"
             ))
+        await waitForRemoteFrameListener(rtcManager: components.rtcManager)
         try components.rtcManager.emitRemoteVideoFrame()
 
         let switchedStream = try await switchTask.value
@@ -1413,6 +1415,10 @@ final class XmaxRealtimeManagerTests: XCTestCase {
         XCTAssertEqual(switchedStream.videoTrack?.position, .back)
         XCTAssertEqual(state.connectionState, .generating)
         XCTAssertEqual(state.taskID, restartedTaskID)
+        XCTAssertEqual(
+            components.sessionService.calls.filter { $0 == .startHeartbeat("session-id") }.count,
+            1
+        )
         XCTAssertEqual(
             decodedEvents(components.rtcManager).filter {
                 $0["event"] as? String == "stop"
@@ -1949,9 +1955,18 @@ final class XmaxRealtimeManagerTests: XCTestCase {
 
     func testHeartbeatFailureReportsErrorAndTerminatesConnection() async throws {
         let components = makeComponents()
+        let sessionService = components.sessionService
         var receivedErrors: [XmaxError] = []
+        var generatingNotifications = 0
         await components.manager.setStateListener { state in
             if case .failure(let error) = state.reason { receivedErrors.append(error) }
+            if state.connectionState == .generating {
+                generatingNotifications += 1
+                XCTAssertEqual(
+                    sessionService.calls.filter { $0 == .startHeartbeat("session-id") }.count,
+                    1
+                )
+            }
         }
         let localStream = try await components.manager.createLocalCameraStream(
             videoFormat: videoFormat,
@@ -1961,9 +1976,12 @@ final class XmaxRealtimeManagerTests: XCTestCase {
         XCTAssertFalse(components.sessionService.calls.contains(.startHeartbeat("session-id")))
         let starting = Task { try await components.manager.startGeneration(context: RealtimeContext(prompt: "test")) }
         await waitForEvent("start", rtcManager: components.rtcManager)
+        XCTAssertFalse(sessionService.calls.contains(.startHeartbeat("session-id")))
         components.rtcManager.emitRemoteVideoAvailable(stream: RemoteStream(roomID: "room-id", userID: "bot-user"))
+        await waitForRemoteFrameListener(rtcManager: components.rtcManager)
         try components.rtcManager.emitRemoteVideoFrame()
         try await starting.value
+        XCTAssertEqual(generatingNotifications, 1)
         XCTAssertTrue(components.sessionService.calls.contains(.startHeartbeat("session-id")))
         let expectedError = XmaxError(
             code: .sessionError,
@@ -2566,6 +2584,24 @@ private extension XmaxRealtimeManagerTests {
         XCTFail(
             "Timed out waiting for room event: \(event), count: \(count)"
         )
+    }
+
+    func waitForRemoteFrameListener(
+        rtcManager: RtcManagingStub
+    ) async {
+        for _ in 0..<1_000 {
+            let isEnabled = rtcManager.calls.compactMap { call -> Bool? in
+                guard case .setRemoteVideoFrameListener(_, let enabled) = call else {
+                    return nil
+                }
+                return enabled
+            }.last
+            if isEnabled == true {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+        XCTFail("Timed out waiting for the remote video frame listener")
     }
 
     func decodedEvents(

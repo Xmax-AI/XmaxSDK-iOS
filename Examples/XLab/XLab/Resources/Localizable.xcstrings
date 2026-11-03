@@ -1,6 +1,34 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "feed.credits" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Credits" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "积分" } }
+      }
+    },
+    "feed.credits.loading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "加载中" } }
+      }
+    },
+    "feed.credits.unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不可用" } }
+      }
+    },
+    "feed.credits.refreshFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to refresh credits." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "积分刷新失败。" } }
+      }
+    },
     "feed.external.title" : {
       "extractionState" : "manual",
       "localizations" : {

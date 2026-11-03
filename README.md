@@ -326,6 +326,20 @@ in seconds. The default is `0.3`; use `0` to show it without animation.
 
 <br>
 
+### Account credits
+
+Query the balance for the account owning the client's API key:
+
+```swift
+let balance = try await client.getCreditBalance()
+print(balance.currentBalance)
+```
+
+Each call fetches the current server balance from the configured general API environment,
+preserving fractional credits. Invalid responses throw instead of becoming a zero balance.
+This query does not create a realtime session. XLab shows credits next to the homepage
+API Key field and refreshes every five seconds while the homepage is visible and active.
+
 ### Using SwiftUI
 
 Use `XmaxRealtimeDualVideo` as your primary SwiftUI view. Store the local and remote
