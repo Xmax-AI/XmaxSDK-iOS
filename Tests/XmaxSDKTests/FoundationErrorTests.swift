@@ -39,6 +39,34 @@ final class FoundationErrorTests: XCTestCase {
         )
     }
 
+    func testFromPreservesSwiftTaskCancellation() {
+        XCTAssertEqual(XmaxError.from(CancellationError()).code, .cancelled)
+    }
+
+    func testFromPreservesURLSessionCancellation() {
+        let errors: [any Error] = [
+            URLError(.cancelled),
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)
+        ]
+
+        for error in errors {
+            XCTAssertEqual(XmaxError.from(error).code, .cancelled)
+        }
+    }
+
+    func testFromDoesNotTreatMatchingCodesInOtherDomainsAsCancellation() {
+        let error = NSError(
+            domain: "test.media",
+            code: NSURLErrorCancelled,
+            userInfo: [NSLocalizedDescriptionKey: "Media operation failed"]
+        )
+
+        XCTAssertEqual(
+            XmaxError.from(error),
+            XmaxError(code: .internalError, message: "Media operation failed")
+        )
+    }
+
     func testFromPreservesOriginalErrorDetails() {
         let original = XmaxError(
             code: .rtcError,

@@ -226,14 +226,15 @@ final class XmaxRealtimeManagerTests: XCTestCase {
 
             try await components.manager.setFrameInterpolationEnabled(true)
             var target = await components.connectionManager.currentTargetSize
-            let interpolationTarget = level == .l1 ? CGSize(width: 676, height: 1196) : networkTarget
+            let needsInterpolationResize = level == .l1 || level == .l2
+            let interpolationTarget = needsInterpolationResize ? CGSize(width: 676, height: 1196) : networkTarget
             XCTAssertEqual(target, interpolationTarget)
 
             try await components.manager.setFrameInterpolationEnabled(false)
             target = await components.connectionManager.currentTargetSize
             XCTAssertEqual(target, networkTarget)
             let sizeChanges = decodedEvents(components.rtcManager).filter { $0["event"] as? String == "change_target_size" }
-            XCTAssertEqual(sizeChanges.count, level == .l1 ? 2 : 0)
+            XCTAssertEqual(sizeChanges.count, needsInterpolationResize ? 2 : 0)
 
             XCTAssertEqual(local.videoTrack?.videoFormat, imageFormat)
             let current = await components.manager.currentState
@@ -596,11 +597,11 @@ final class XmaxRealtimeManagerTests: XCTestCase {
             $0["event"] as? String == "change_condition"
         })
         let startParams = try XCTUnwrap(start["params"] as? [String: Any])
-        XCTAssertEqual(startParams["size"] as? [Int], [1024, 1920])
+        XCTAssertEqual(startParams["size"] as? [Int], [1080, 1920])
         XCTAssertEqual(startParams["target_size"] as? [Int], [832, 1472])
         XCTAssertEqual(startParams["padding"] as? String, "contain")
         let changeParams = try XCTUnwrap(change["params"] as? [String: Any])
-        XCTAssertEqual(changeParams["size"] as? [Int], [1024, 1920])
+        XCTAssertEqual(changeParams["size"] as? [Int], [1080, 1920])
         XCTAssertNil(changeParams["target_size"])
         XCTAssertEqual(remote.videoTrack?.videoFormat, targetFormat)
         await components.mediaController.submitInteraction(InteractionFrame(
@@ -664,7 +665,7 @@ final class XmaxRealtimeManagerTests: XCTestCase {
         let remote = try await components.manager.connect(localStream: local)
         XCTAssertEqual(remote.videoTrack?.videoFormat, videoFormat)
         let target = await components.connectionManager.currentTargetSize
-        XCTAssertNil(target)
+        XCTAssertEqual(target, videoFormat.size)
         await components.manager.close()
     }
 
@@ -1652,6 +1653,7 @@ final class XmaxRealtimeManagerTests: XCTestCase {
                 roomID: "room-id",
                 userID: "bot-user"
             ))
+        await waitForRemoteFrameListener(rtcManager: components.rtcManager)
         try components.rtcManager.emitRemoteVideoFrame()
 
         let remoteStream = try await startTask.value

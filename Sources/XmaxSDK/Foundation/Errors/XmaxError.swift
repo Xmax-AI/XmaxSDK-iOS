@@ -99,7 +99,7 @@ public struct XmaxError: Error, LocalizedError, Equatable, Sendable {
         message
     }
 
-    /// Converts an error to an SDK error, preserving existing `XmaxError` values.
+    /// Converts an error to an SDK error, preserving cancellation and existing `XmaxError` values.
     ///
     /// - Parameter error: The error to convert.
     ///
@@ -111,6 +111,13 @@ public struct XmaxError: Error, LocalizedError, Equatable, Sendable {
             return xmaxError
         }
 
+        if isCancellation(error) {
+            return XmaxError(
+                code: .cancelled,
+                message: "Operation was cancelled"
+            )
+        }
+
         let description = (error as NSError).localizedDescription
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let message = description.isEmpty ? String(describing: error) : description
@@ -119,5 +126,21 @@ public struct XmaxError: Error, LocalizedError, Equatable, Sendable {
             code: .internalError,
             message: message
         )
+    }
+
+    /// Identifies cancellation from SDK operations, Swift tasks, or URL loading.
+    static func isCancellation(
+        _ error: any Error
+    ) -> Bool {
+        switch error {
+        case let error as XmaxError:
+            error.code == .cancelled
+        case is CancellationError:
+            true
+        case let error as URLError:
+            error.code == .cancelled
+        default:
+            false
+        }
     }
 }

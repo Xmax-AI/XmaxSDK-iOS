@@ -353,15 +353,7 @@ private extension ApiService {
     static func transportError(
         _ error: any Error
     ) -> XmaxError {
-        if error is CancellationError {
-            return XmaxError(
-                code: .cancelled,
-                message: "API request was cancelled"
-            )
-        }
-
-        let platformError = error as NSError
-        if platformError.domain == NSURLErrorDomain, platformError.code == NSURLErrorCancelled {
+        if XmaxError.isCancellation(error) {
             return XmaxError(
                 code: .cancelled,
                 message: "API request was cancelled"

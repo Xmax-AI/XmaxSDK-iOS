@@ -813,7 +813,7 @@ private extension XmaxRealtimeLifecycleManager {
         operation: Operation
     ) async throws -> Value {
         let operationWasCancelled =
-            Self.isCancellation(error) || !operation.lease.isCurrent || Task.isCancelled
+            XmaxError.isCancellation(error) || !operation.lease.isCurrent || Task.isCancelled
 
         if operationWasCancelled {
             // Cancelling a configuration request does not stop generation; explicit termination still awaits cleanup.
@@ -1056,17 +1056,6 @@ private extension XmaxRealtimeLifecycleManager {
         if let stateListener {
             await stateListener(nextState)
         }
-    }
-
-    /// Determines whether an error represents cancellation.
-    ///
-    /// - Parameter error: The error to check.
-    ///
-    /// - Returns: `true` for task cancellation or an SDK cancellation error.
-    static func isCancellation(
-        _ error: any Error
-    ) -> Bool {
-        error is CancellationError || (error as? XmaxError)?.code == .cancelled
     }
 
     /// Creates a realtime operation cancellation error.
