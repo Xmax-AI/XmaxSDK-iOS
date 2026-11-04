@@ -151,6 +151,125 @@ final class RoomCommandControllerTests: XCTestCase {
         await controller.close()
     }
 
+    func testEachControlRelaysFrozenPayloadOnceWhileRTCRetries() async throws {
+        for kind in [RoomCommandController.Kind.start, .changeCondition, .changeTargetSize] {
+            let clock = CommandTestClock()
+            let rtc = CommandTestTransport()
+            let http = CommandTestRelay()
+            let controller = RoomCommandController(sendMessage: rtc.send, sleep: clock.sleep, relayMessage: http.send)
+            try await command(controller, kind: kind).value
+            await eventually { http.completed == 1 && clock.waiterCount == 6 }
+            for (offset, count) in [(300, 2), (1000, 3), (3000, 4), (3300, 5), (4000, 6)] {
+                clock.advance(to: UInt64(offset) * 1_000_000)
+                await eventually { rtc.messages.count == count }
+            }
+            clock.advance(to: 6_000_000_000)
+            await eventually { clock.waiterCount == 0 }
+            XCTAssertEqual(http.messages, [try XCTUnwrap(rtc.messages.first)])
+            XCTAssertEqual(Set(rtc.messages).count, 1)
+            await controller.close()
+        }
+    }
+
+    func testHTTPCompletionDoesNotCompleteRTCOrStopRetries() async throws {
+        let clock = CommandTestClock()
+        let rtc = CommandTestTransport(held: true)
+        let http = CommandTestRelay()
+        let completed = CommandTestFlag()
+        let controller = RoomCommandController(sendMessage: rtc.send, sleep: clock.sleep, relayMessage: http.send)
+        let sent = try await command(controller)
+        let observer = Task { try await sent.value; completed.set() }
+        await eventually { http.completed == 1 && clock.waiterCount == 6 }
+        XCTAssertFalse(completed.value)
+        clock.advance(to: 300_000_000)
+        await eventually { rtc.messages.count == 2 }
+        XCTAssertFalse(completed.value)
+        rtc.finish()
+        try await observer.value
+        await controller.close()
+    }
+
+    func testHTTPFailureLeavesRTCResultAndRetriesUnchanged() async throws {
+        let clock = CommandTestClock()
+        let rtc = CommandTestTransport()
+        let http = CommandTestRelay(failure: XmaxError(code: .networkError, message: "Offline"))
+        let controller = RoomCommandController(sendMessage: rtc.send, sleep: clock.sleep, relayMessage: http.send)
+        try await command(controller).value
+        await eventually { http.completed == 1 && clock.waiterCount == 6 }
+        clock.advance(to: 300_000_000)
+        await eventually { rtc.messages.count == 2 }
+        XCTAssertEqual(http.messages.count, 1)
+        await controller.close()
+    }
+
+    func testAckAndDeadlineRetainHTTPForTaskCancellation() async throws {
+        for receivesAck in [true, false] {
+            let clock = CommandTestClock()
+            let rtc = CommandTestTransport()
+            let http = CommandTestRelay(held: true)
+            let controller = RoomCommandController(sendMessage: rtc.send, sleep: clock.sleep, relayMessage: http.send)
+            try await command(controller).value
+            await eventually { http.messages.count == 1 && clock.waiterCount == 6 }
+            if receivesAck {
+                await controller.acknowledge(xid: try identifier(rtc.messages[0]), count: 1)
+            } else {
+                clock.advance(to: 6_000_000_000)
+            }
+            await eventually { clock.waiterCount == 0 }
+            XCTAssertEqual(http.cancelled, 0)
+            await controller.cancel(taskID: "task")
+            await eventually { http.cancelled == 1 }
+            await controller.close()
+        }
+    }
+
+    func testReplacementAndCloseCancelHTTPAfterRTCReceipt() async throws {
+        for kind in [RoomCommandController.Kind.start, .changeCondition, .changeTargetSize] {
+            let clock = CommandTestClock()
+            let rtc = CommandTestTransport()
+            let http = CommandTestRelay(held: true)
+            let controller = RoomCommandController(sendMessage: rtc.send, sleep: clock.sleep, relayMessage: http.send)
+            try await command(controller, kind: kind).value
+            await eventually { http.messages.count == 1 }
+            await controller.acknowledge(xid: try identifier(rtc.messages[0]), count: 1)
+            try await command(controller, kind: kind, prompt: "replacement").value
+            await eventually { http.messages.count == 2 && http.cancelled == 1 }
+            await controller.close()
+            await eventually { http.cancelled == 2 }
+        }
+    }
+
+    func testAckBeforeRTCCompletionRetainsHTTPForClose() async throws {
+        let rtc = CommandTestTransport(held: true)
+        let http = CommandTestRelay(held: true)
+        let controller = RoomCommandController(sendMessage: rtc.send, relayMessage: http.send)
+        let sent = try await command(controller)
+        await eventually { http.messages.count == 1 && rtc.messages.count == 1 }
+        await controller.acknowledge(xid: try identifier(rtc.messages[0]), count: 1)
+        rtc.finish()
+        try await sent.value
+        XCTAssertEqual(http.cancelled, 0)
+        await controller.close()
+        await eventually { http.cancelled == 1 }
+    }
+
+    func testInitialRTCFailureCancelsIndependentHTTPRequest() async throws {
+        let (stream, continuation) = AsyncThrowingStream<Void, any Error>.makeStream()
+        let http = CommandTestRelay(held: true)
+        let controller = RoomCommandController(
+            sendMessage: { _ in Task { for try await _ in stream {} } },
+            relayMessage: http.send
+        )
+        let sent = try await command(controller)
+        await eventually { http.messages.count == 1 }
+        let failure = XmaxError(code: .rtcError, message: "Send failed")
+        continuation.finish(throwing: failure)
+        do { try await sent.value; XCTFail("Initial RTC failure must propagate") }
+        catch { XCTAssertEqual(error as? XmaxError, failure) }
+        await eventually { http.cancelled == 1 }
+        await controller.close()
+    }
+
     private func command(
         _ controller: RoomCommandController,
         kind: RoomCommandController.Kind = .start,
@@ -254,5 +373,35 @@ private final class CommandTestTransport: @unchecked Sendable {
             return values
         }
         values.forEach { $0.finish() }
+    }
+}
+
+private final class CommandTestRelay: @unchecked Sendable {
+    private let lock = NSLock()
+    private let held: Bool
+    private let failure: XmaxError?
+    private var storedMessages: [String] = []
+    private var completedCount = 0
+    private var cancelledCount = 0
+
+    init(held: Bool = false, failure: XmaxError? = nil) {
+        self.held = held
+        self.failure = failure
+    }
+
+    var messages: [String] { lock.withLock { storedMessages } }
+    var completed: Int { lock.withLock { completedCount } }
+    var cancelled: Int { lock.withLock { cancelledCount } }
+
+    func send(_ message: String) async throws {
+        lock.withLock { storedMessages.append(message) }
+        defer {
+            lock.withLock {
+                completedCount += 1
+                if Task.isCancelled { cancelledCount += 1 }
+            }
+        }
+        if let failure { throw failure }
+        if held { try await Task.sleep(nanoseconds: 30_000_000_000) }
     }
 }

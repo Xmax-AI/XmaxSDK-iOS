@@ -10,7 +10,7 @@
 
 import Foundation
 
-/// Retries logical commands independently of transport completion and generation readiness.
+/// Coordinates RTC retries and one HTTP copy independently of generation readiness.
 actor RoomCommandController {
 
     /// Commands with service receipts and a bounded background retry schedule.
@@ -43,6 +43,8 @@ actor RoomCommandController {
         var scheduled: [Task<Void, Never>] = []
         /// Native attempts retained so queued fragments can be cancelled.
         var transports: [UUID: (initial: Bool, task: Task<Void, any Error>)] = [:]
+        /// The HTTP submission retained until completion or explicit lifecycle cancellation.
+        var relayTask: Task<Void, Never>?
         /// The number of attempts submitted to the transport.
         var attempts = 0
         /// Whether further redundant attempts may be submitted.
@@ -75,10 +77,13 @@ actor RoomCommandController {
     /// Submits one complete, independently cancellable transport attempt.
     private let sendMessage: @Sendable (String) throws -> Task<Void, any Error>
 
+    /// Submits one independently cancellable HTTP copy of the complete command.
+    private let relayMessage: (@Sendable (String) async throws -> Void)?
+
     /// Sleeps relative to the first attempt; injectable for deterministic retry tests.
     private let sleep: @Sendable (UInt64) async throws -> Void
 
-    /// Pending logical commands indexed by the identifier retained across retries.
+    /// Commands with pending RTC or HTTP work, indexed by their shared identifier.
     private var pending: [String: Command] = [:]
 
     /// Orders initial commands without waiting for their receipts or retry budgets.
@@ -92,10 +97,12 @@ actor RoomCommandController {
         sendMessage: @escaping @Sendable (String) throws -> Task<Void, any Error>,
         sleep: @escaping @Sendable (UInt64) async throws -> Void = {
             try await Task.sleep(nanoseconds: $0)
-        }
+        },
+        relayMessage: (@Sendable (String) async throws -> Void)? = nil
     ) {
         self.sendMessage = sendMessage
         self.sleep = sleep
+        self.relayMessage = relayMessage
     }
 
     /// Freezes a new command, cancels superseded work, and returns its first successful send.
@@ -202,7 +209,34 @@ actor RoomCommandController {
                 }
             )
         }
+        beginRelay(command)
         attempt(command, initial: true)
+    }
+
+    /// Starts one HTTP submission whose lifetime is independent of RTC receipts and retries.
+    private func beginRelay(_ command: Command) {
+        guard let relayMessage else { return }
+        command.relayTask = Task {
+            defer {
+                command.relayTask = nil
+                releaseCompleted(command)
+            }
+            let startedAt = ProcessInfo.processInfo.systemUptime
+            do {
+                try Task.checkCancellation()
+                if !command.sent { try command.ensureCurrent() }
+                try await relayMessage(command.message)
+            } catch {
+                guard !Task.isCancelled, !XmaxError.isCancellation(error) else { return }
+                let elapsed = Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1000)
+                XmaxLogger.room.warn(
+                    message: "HTTP 信令转发失败 (HTTP Signaling Relay Failed)\n"
+                        + "├─ event: \(command.kind.rawValue), xid: \(command.xid)\n"
+                        + "├─ elapsed: \(elapsed) ms\n"
+                        + "└─ \(ErrorMessageFormatter.format(error))"
+                )
+            }
+        }
     }
 
     /// Submits an attempt while retaining cancellation until native sending settles.
@@ -243,7 +277,7 @@ actor RoomCommandController {
                 command.sent = true
                 command.completion.finish()
             }
-            if !command.retrying { pending.removeValue(forKey: command.xid) }
+            releaseCompleted(command)
         case .failure(let error):
             if initial, !command.sent {
                 failInitial(command, error: error)
@@ -271,7 +305,14 @@ actor RoomCommandController {
         for transport in command.transports.values where !transport.initial || command.sent {
             transport.task.cancel()
         }
-        if command.sent { pending.removeValue(forKey: command.xid) }
+        releaseCompleted(command)
+    }
+
+    /// Retains HTTP requests after RTC work finishes so later task cleanup can still cancel them.
+    private func releaseCompleted(_ command: Command) {
+        if command.sent, !command.retrying, command.relayTask == nil {
+            pending.removeValue(forKey: command.xid)
+        }
     }
 
     /// Cancels both original and redundant attempts at an explicit task or supersession boundary.
@@ -282,6 +323,7 @@ actor RoomCommandController {
         command.cancelled = true
         stopRetries(command)
         command.transports.values.forEach { $0.task.cancel() }
+        command.relayTask?.cancel()
         command.completion.finish(
             throwing: error is CancellationError
                 ? XmaxError(code: .cancelled, message: "RTC command was cancelled")

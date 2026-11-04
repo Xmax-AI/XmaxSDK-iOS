@@ -25,4 +25,24 @@ struct RealtimeSession: Equatable, Sendable {
 
     /// The server-reported session closure reason.
     let closeReason: String?
+
+    /// The assigned model instance used for HTTP event relay.
+    let modelID: String?
+
+    /// Creates a session with optional HTTP relay routing.
+    init(
+        id: String,
+        userID: String?,
+        status: String?,
+        connection: RealtimeSessionConnection?,
+        closeReason: String?,
+        modelID: String? = nil
+    ) {
+        self.id = id
+        self.userID = userID
+        self.status = status
+        self.connection = connection
+        self.closeReason = closeReason
+        self.modelID = modelID
+    }
 }

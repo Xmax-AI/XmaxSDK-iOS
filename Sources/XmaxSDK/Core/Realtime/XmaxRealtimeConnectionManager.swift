@@ -123,6 +123,11 @@ actor XmaxRealtimeConnectionManager {
         activeRemoteTrack.updateVideoFormat(remoteFormat)
     }
 
+    /// The connected session and its assigned model instance, or `nil` while disconnected.
+    var currentSession: RealtimeSession? {
+        activeSession
+    }
+
     /// Updates target output dimensions and the remote track's format.
     ///
     /// - Parameters:

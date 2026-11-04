@@ -51,6 +51,23 @@ final class RealtimeSessionServiceTests: XCTestCase {
         XCTAssertEqual(api.requests.last?.method, .delete)
     }
 
+    func testCreateSessionRetainsOptionalModelInstanceIdentifier() async throws {
+        let cases: [(Any?, String?)] = [(nil, nil), (" instance ", "instance"), ("  ", nil), (7, nil)]
+        for (modelUID, expected) in cases {
+            var payload: [String: Any] = [
+                "sessionUid": "session", "status": "ACTIVE",
+                "modelExtra": [
+                    "room_id": "room", "room_token": "token", "rtc_user_id": "user",
+                    "rtc_bot_id": "bot", "rtc_app_id": RtcEngineManager.defaultAppID
+                ]
+            ]
+            payload["modelUid"] = modelUID
+            let api = RealtimeApiServiceStub(responses: [.success(try JSONSerialization.data(withJSONObject: payload))])
+            let session = try await RealtimeSessionService(apiService: api).createSession(model: .x2_1)
+            XCTAssertEqual(session.modelID, expected)
+        }
+    }
+
     func testMissingRTCAccountDoesNotFallBackToBusinessUserID() async throws {
         let payload = Data(#"{"sessionUid":"missing-account","userUid":"business-user","modelExtra":{"room_id":"room","room_token":"token","rtc_bot_id":"bot","rtc_app_id":"5588dfe2e7874bd08ea28f4968ec2d40"}}"#.utf8)
         let api = RealtimeApiServiceStub(responses: [.success(payload), .success(Data("{}".utf8))])
