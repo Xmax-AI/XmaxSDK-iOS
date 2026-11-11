@@ -68,6 +68,14 @@ final class StreamController: StreamControlling, RtcEventListener,
         }
     }
 
+    var lastStoppedTaskID: String? {
+        stateLock.withLock { state.lastStoppedTaskID }
+    }
+
+    func setRoomMessageListener(_ listener: RealtimeRoomMessageListener?) async {
+        await roomController.setRoomMessageListener(listener)
+    }
+
     /// The remote playback volume, from 0 to 1.
     var remoteAudioVolume: Float {
         Float(
@@ -565,6 +573,27 @@ final class StreamController: StreamControlling, RtcEventListener,
         }
     }
 
+    /// Unpublishes the input while keeping the RTC room open.
+    func unpublishLocalStream() throws {
+        try operationLock.withLock {
+            let publication = stateLock.withLock {
+                (video: state.localVideoPublished, audio: state.localAudioPublished)
+            }
+            let video = Result {
+                if publication.video {
+                    try rtcManager.unpublishLocalVideo()
+                    stateLock.withLock { state.localVideoPublished = false }
+                    qualityController.setUplinkVideoStatisticsEnabled(false)
+                }
+            }
+            if publication.audio {
+                try rtcManager.unpublishLocalAudio()
+                stateLock.withLock { state.localAudioPublished = false }
+            }
+            try video.get()
+        }
+    }
+
     /// Pushes external video during generation, ignoring frames without an active task.
     ///
     /// - Parameter frame: The local frame prepared for RTC.
@@ -573,18 +602,15 @@ final class StreamController: StreamControlling, RtcEventListener,
     func pushLocalVideoFrame(
         _ frame: VideoFrame
     ) throws {
-        guard
-            stateLock.withLock({
-                state.generationTask != nil
-            })
-        else {
-            return
-        }
-
-        do {
-            try rtcManager.pushExternalVideoFrame(frame)
-        } catch {
-            throw XmaxError.from(error)
+        try operationLock.withLock {
+            guard stateLock.withLock({ state.generationTask != nil && state.localVideoPublished }) else {
+                return
+            }
+            do {
+                try rtcManager.pushExternalVideoFrame(frame)
+            } catch {
+                throw XmaxError.from(error)
+            }
         }
     }
 
@@ -685,6 +711,7 @@ final class StreamController: StreamControlling, RtcEventListener,
             stateLock.withLock {
                 state.generationTask = GenerationTask(id: taskID)
                 state.generationWaiter = waiter
+                state.lastStoppedTaskID = nil
             }
 
             waiter.timeoutTask = Task { [weak self, weak waiter] in
@@ -755,6 +782,9 @@ final class StreamController: StreamControlling, RtcEventListener,
                 let waiter = state.generationWaiter
                 let remoteAudioUserIDs =
                     state.subscribedRemoteAudioUserIDs
+                if !currentTaskID.isEmpty {
+                    state.lastStoppedTaskID = currentTaskID
+                }
                 state.generationTask = nil
                 state.generationWaiter = nil
                 state.activeRemoteStream = nil
@@ -1016,6 +1046,9 @@ private extension StreamController {
 
         /// The submitted generation task.
         var generationTask: GenerationTask?
+
+        /// The last task removed from the current room, including interrupted startup.
+        var lastStoppedTaskID: String?
 
         /// The waiter for generation signaling and remote stream readiness.
         var generationWaiter: GenerationWaiter?

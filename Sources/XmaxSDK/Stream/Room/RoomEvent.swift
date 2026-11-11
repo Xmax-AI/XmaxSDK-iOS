@@ -10,6 +10,27 @@
 
 import Foundation
 
+/// A decoded signaling message received in the current RTC room.
+public struct RealtimeRoomMessage: Sendable {
+    /// The RTC account that sent the message.
+    public let senderUserID: String
+
+    /// Whether the sender matches the generation service account assigned to the room.
+    public let isFromGenerationService: Bool
+
+    /// The event name carried by the message.
+    public let event: String
+
+    /// The optional generation task identifier carried in the `uid` field.
+    public let taskID: String?
+
+    /// The original UTF-8 JSON, reassembled if the RTC transport split it into fragments.
+    public let payload: Data
+}
+
+/// Receives room messages serially on the SDK's signaling actor.
+public typealias RealtimeRoomMessageListener = @Sendable (RealtimeRoomMessage) -> Void
+
 /// The structured signaling exchanged through RTC rooms.
 enum RoomEvent {
 

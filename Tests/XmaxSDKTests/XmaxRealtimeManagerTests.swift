@@ -1519,6 +1519,116 @@ final class XmaxRealtimeManagerTests: XCTestCase {
         }
     }
 
+    func testStopGenerationKeepsEachInputAndRestartsInTheSameRoom() async throws {
+        for source in RealtimeMediaSource.allCases {
+            let components = makeComponents()
+            let manager: any XmaxRealtimeManaging = components.manager
+            let rtc = components.rtcManager
+            let local: RealtimeMediaStream
+            switch source {
+            case .camera:
+                local = try await manager.createLocalCameraStream(useMicrophone: true)
+            case .video:
+                local = try await manager.createLocalVideoStream(fileURL: URL(fileURLWithPath: "/tmp/source.mp4"))
+            case .image:
+                local = try await manager.createLocalImageStream(imageData: Data([1]))
+            case .external:
+                local = try await manager.createExternalVideoStream(source: RealtimeExternalVideoSourceStub())
+            }
+
+            let bot = RemoteStream(roomID: "room-id", userID: "bot-user")
+            let first = Task {
+                try await manager.startGeneration(localStream: local, context: RealtimeContext(prompt: "first"))
+            }
+            await waitForEvent("start", rtcManager: rtc)
+            rtc.emitRemoteVideoAvailable(stream: bot)
+            await waitForRemoteFrameListener(rtcManager: rtc)
+            try rtc.emitRemoteVideoFrame()
+            _ = try await first.value
+            let firstState = await manager.currentState
+
+            // The bot can keep publishing the same RTC track across tasks.
+            let stoppedTaskID = try await manager.stopGeneration()
+            XCTAssertEqual(stoppedTaskID, firstState.taskID)
+            XCTAssertThrowsError(try rtc.emitRemoteVideoFrame())
+            let stopEvent = try XCTUnwrap(decodedEvents(rtc).last { $0["event"] as? String == "stop" })
+            XCTAssertEqual(stopEvent["uid"] as? String, firstState.taskID)
+
+            let stoppedState = await manager.currentState
+            let preservedTrack = await components.mediaController.currentTrack
+            XCTAssertEqual(stoppedState.connectionState, .connected)
+            XCTAssertEqual(stoppedState.sessionID, firstState.sessionID)
+            XCTAssertNil(stoppedState.taskID)
+            XCTAssertEqual(preservedTrack?.id, local.videoTrack?.id)
+            XCTAssertTrue(rtc.calls.contains(.unpublishLocalVideo))
+            if source == .camera {
+                XCTAssertTrue(rtc.calls.contains(.unpublishLocalAudio))
+            }
+
+            let restart = Task {
+                try await manager.startGeneration(localStream: local, context: RealtimeContext(prompt: "second"))
+            }
+            await waitForEventCount("start", count: 2, rtcManager: rtc)
+            await waitForRemoteFrameListener(rtcManager: rtc)
+            try rtc.emitRemoteVideoFrame()
+            _ = try await restart.value
+            let restartedState = await manager.currentState
+            XCTAssertEqual(restartedState.sessionID, firstState.sessionID)
+            XCTAssertNotEqual(restartedState.taskID, firstState.taskID)
+            let startEvent = try XCTUnwrap(decodedEvents(rtc).last { $0["event"] as? String == "start" })
+            XCTAssertEqual(startEvent["uid"] as? String, restartedState.taskID)
+            XCTAssertEqual(rtc.calls.filter { $0 == .publishLocalVideo }.count, 2)
+            XCTAssertFalse(rtc.calls.contains(.leaveRoom))
+            XCTAssertFalse(decodedEvents(rtc).contains { $0["event"] as? String == "change_condition" })
+            await manager.close()
+        }
+    }
+
+    func testRoomListenerReportsVideoStoppedForAnInterruptedStartup() async throws {
+        let components = makeComponents()
+        let manager: any XmaxRealtimeManaging = components.manager
+        let rtc = components.rtcManager
+        let stream = try await manager.createLocalImageStream(imageData: Data([1]))
+        let startup = Task {
+            try await manager.startGeneration(localStream: stream, context: RealtimeContext(prompt: "test"))
+        }
+        await waitForEvent("start", rtcManager: rtc)
+        let start = try XCTUnwrap(decodedEvents(rtc).last { $0["event"] as? String == "start" })
+        let taskID = try XCTUnwrap(start["uid"] as? String)
+
+        let serviceMessage = expectation(description: "video_stopped from generation service")
+        let peerMessage = expectation(description: "video_stopped from another room user")
+        await manager.setRoomMessageListener { message in
+            guard message.event == "video_stopped" else { return }
+            XCTAssertEqual(message.taskID, taskID)
+            if message.senderUserID == "bot-user" {
+                XCTAssertTrue(message.isFromGenerationService)
+                serviceMessage.fulfill()
+            } else {
+                XCTAssertFalse(message.isFromGenerationService)
+                peerMessage.fulfill()
+            }
+        }
+        let stoppedTaskID = try await manager.stopGeneration()
+        XCTAssertEqual(stoppedTaskID, taskID)
+        let payload = #"{"event":"video_stopped","uid":"\#(taskID)"}"#
+        rtc.emitRoomMessage(sender: "other-user", message: payload)
+        rtc.emitRoomMessage(sender: "bot-user", message: payload)
+        await fulfillment(of: [serviceMessage, peerMessage], timeout: 1)
+
+        do {
+            _ = try await startup.value
+            XCTFail("Expected the pending startup to be cancelled")
+        } catch {
+            XCTAssertEqual(XmaxError.from(error).code, .cancelled)
+        }
+        let state = await manager.currentState
+        XCTAssertEqual(state.connectionState, .connected)
+        XCTAssertFalse(rtc.calls.contains(.leaveRoom))
+        await manager.setRoomMessageListener(nil)
+        await manager.close()
+    }
+
     func testGenerationLifecycleTransitionsAndUpdatesCondition() async throws {
         let components = makeComponents()
         let localStream = try await components.manager.createLocalCameraStream(

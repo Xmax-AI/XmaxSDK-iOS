@@ -158,7 +158,7 @@ actor RoomCommandController {
         do {
             try command.ensureCurrent()
             XmaxLogger.room.info(
-                message: "接收房间信令 (Inbound Room Signaling)\n"
+                message: "房间信令已确认 (Room Signaling Acknowledged)\n"
                     + "├─ \(XmaxLogger.localized("类型：", "Type: "))xid_ack\n"
                     + "├─ \(XmaxLogger.localized("命令：", "Command: "))\(command.kind.rawValue)\n"
                     + "├─ xid: \(command.xid)\n"

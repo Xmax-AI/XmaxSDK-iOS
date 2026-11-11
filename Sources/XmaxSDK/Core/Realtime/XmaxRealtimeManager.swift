@@ -268,6 +268,10 @@ actor XmaxRealtimeManager: XmaxRealtimeManaging {
         await lifecycleManager.setStateListener(listener)
     }
 
+    func setRoomMessageListener(_ listener: RealtimeRoomMessageListener?) async {
+        await streamController.setRoomMessageListener(listener)
+    }
+
     /// Sets serialized remote PCM and processed video output without changing playback.
     ///
     /// - Parameter listener: The output handler, or `nil` to stop output.
@@ -758,6 +762,11 @@ actor XmaxRealtimeManager: XmaxRealtimeManaging {
 
     // MARK: - Generation
 
+    @discardableResult
+    func stopGeneration() async throws -> String? {
+        try await lifecycleManager.stopGeneration()
+    }
+
     /// Starts generation or updates conditions for the active task.
     ///
     /// - Parameters:
@@ -928,6 +937,9 @@ actor XmaxRealtimeManager: XmaxRealtimeManaging {
 
         do {
             await mediaController.setLocalAudioPreviewMuted(true)
+            let includeAudio = await mediaController.hasAudio
+            try token.ensureCurrent()
+            try streamController.publishLocalStream(includeAudio: includeAudio)
             let taskID = try await generationManager.start(
                 videoFormat: videoFormat,
                 targetSize: await connectionManager.currentTargetSize,

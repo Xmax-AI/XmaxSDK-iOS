@@ -13,6 +13,9 @@ import CoreGraphics
 /// An interface for room lifecycle and signaling.
 protocol RoomControlling: Actor {
 
+    /// Registers a listener for decoded messages in the current room.
+    func setRoomMessageListener(_ listener: RealtimeRoomMessageListener?)
+
     /// Joins a realtime room while checking operation validity.
     ///
     /// - Parameters:
@@ -87,11 +90,11 @@ protocol RoomControlling: Actor {
         ensureActive: @escaping @Sendable () throws -> Void
     ) async throws
 
-    /// Enqueues a stop signal if the room and task are active.
+    /// Sends a stop signal if the room and task are active.
     ///
     /// - Parameter taskID: The generation task to stop.
     ///
-    /// - Throws: An error if stop signaling cannot be encoded or enqueued.
+    /// - Throws: An error if stop signaling cannot be encoded, enqueued, or sent.
     func stopGeneration(
         taskID: String
     ) async throws

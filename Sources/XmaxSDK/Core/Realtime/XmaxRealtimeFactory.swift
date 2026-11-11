@@ -203,6 +203,25 @@ enum XmaxRealtimeFactory {
                 await connectionManager.startHeartbeat(sessionID: sessionID)
             },
             cleanup: { scope, taskID in
+                if scope == .publication {
+                    let publication = Result { try streamController.unpublishLocalStream() }
+                    var stopError: XmaxError?
+                    do {
+                        try await generationManager.stop(taskID: taskID)
+                        try await renderController.setRemoteStream(nil)
+                        try publication.get()
+                    } catch {
+                        stopError = XmaxError.from(error)
+                    }
+                    await mediaController.setLocalAudioPreviewMuted(false)
+                    return XmaxRealtimeLifecycleManager.CleanupResult(
+                        sessionID: await connectionManager.currentSessionID,
+                        hasLocalMedia: await mediaController.currentTrack != nil,
+                        error: stopError,
+                        stoppedTaskID: streamController.lastStoppedTaskID
+                    )
+                }
+
                 if scope == .generation {
                     do {
                         try await generationManager.stop(taskID: taskID)

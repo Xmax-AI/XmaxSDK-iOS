@@ -46,6 +46,9 @@ actor RoomController: RoomControlling {
     /// The expected service sender assigned by the session.
     private var botID: String?
 
+    /// The application listener for decoded messages from the current room.
+    private var messageListener: RealtimeRoomMessageListener?
+
     /// Creates a room controller with its default heartbeat.
     ///
     /// - Parameters:
@@ -301,11 +304,11 @@ actor RoomController: RoomControlling {
         try await waitForCommand(sending)
     }
 
-    /// Enqueues a stop signal if the room and task are active.
+    /// Sends a stop signal if the room and task are active.
     ///
     /// - Parameter taskID: The generation task to stop.
     ///
-    /// - Throws: An error if stop signaling cannot be encoded or enqueued.
+    /// - Throws: An error if stop signaling cannot be encoded, enqueued, or sent.
     func stopGeneration(
         taskID: String
     ) async throws {
@@ -316,13 +319,15 @@ actor RoomController: RoomControlling {
             return
         }
 
-        try send(
+        let sending = try send(
             RoomEvent.stop(
                 userID: userID,
                 taskID: taskID
             ),
             discardPending: true
         )
+        // A cancelled start can still need to stop the task it already submitted.
+        try await sending.value
     }
 
     /// Submits a generation task's trajectory.
@@ -355,11 +360,33 @@ actor RoomController: RoomControlling {
         await commands.cancel(taskID: taskID.isEmpty ? nil : taskID)
     }
 
-    /// Accepts only current-room receipts from the expected generation user.
+    func setRoomMessageListener(_ listener: RealtimeRoomMessageListener?) {
+        messageListener = listener
+    }
+
+    /// Logs current-room events and processes command receipts from the expected generation user.
     private func handleIncomingMessage(sender: String, data: Data, operationID: UUID) async {
         guard roomOperationID == operationID, case .joined(let userID) = state,
-            sender != userID, botID == nil || sender == botID,
-            let message = decoder.decode(sender: sender, data: data),
+            sender != userID
+        else { return }
+
+        let expectedSender = botID == nil || sender == botID
+        guard expectedSender || messageListener != nil || XmaxLogger.isEnabled(.business),
+            let (message, payload) = decoder.decode(sender: sender, data: data)
+        else { return }
+
+        XmaxLogger.room.info(message: Self.formatSignalLog(payload, direction: .inbound))
+        if let event = message.event {
+            messageListener?(RealtimeRoomMessage(
+                senderUserID: sender,
+                isFromGenerationService: botID == sender,
+                event: event,
+                taskID: message.taskID,
+                payload: payload
+            ))
+        }
+
+        guard expectedSender,
             message.targetUserID == nil || message.targetUserID == userID,
             message.event == "xid_ack", let xid = message.xid, let count = message.count
         else { return }
@@ -391,7 +418,7 @@ extension RoomController {
     ) -> RoomCommandController {
         RoomCommandController(
             sendMessage: { message in
-                XmaxLogger.room.debug(message: Self.formatSignalLog(message))
+                XmaxLogger.room.debug(message: Self.formatSignalLog(Data(message.utf8), direction: .outbound))
                 rtcManager.discardPendingMessages(key: nil)
                 return try rtcManager.sendRoomMessage(message, reportFailure: false)
             },
@@ -489,24 +516,26 @@ extension RoomController {
         }
 
         XmaxLogger.room.debug(
-            message: Self.formatSignalLog(message)
+            message: Self.formatSignalLog(Data(message.utf8), direction: .outbound)
         )
         return sending
     }
 
-    /// Formats an outbound room signal.
-    ///
-    /// - Parameter message: The original signaling text.
-    ///
-    /// - Returns: The event and JSON contents, or the original text if parsing fails.
-    fileprivate static func formatSignalLog(
-        _ message: String
+    enum SignalDirection: String {
+        case inbound = "接收房间信令 (Inbound Room Signaling)"
+        case outbound = "发送房间信令 (Outbound Room Signaling)"
+    }
+
+    /// Formats the event and its JSON using the same layout for incoming and outgoing signals.
+    static func formatSignalLog(
+        _ payload: Data,
+        direction: SignalDirection
     ) -> String {
-        guard let data = message.data(using: .utf8),
-            let object = try? JSONSerialization.jsonObject(with: data),
+        let contentLabel = XmaxLogger.localized("内容：", "Content: ")
+        guard let object = try? JSONSerialization.jsonObject(with: payload),
             let event = object as? [String: Any],
             let formattedData = try? JSONSerialization.data(
-                withJSONObject: event,
+                withJSONObject: direction == .inbound ? redactSignalCredentials(event) : event,
                 options: [.prettyPrinted, .sortedKeys]
             ),
             let formattedMessage = String(
@@ -514,8 +543,8 @@ extension RoomController {
                 encoding: .utf8
             )
         else {
-            return
-                "发送房间信令 (Outbound Room Signaling)\n└─ \(XmaxLogger.localized("内容：", "Content: "))\(message)"
+            let content = direction == .outbound ? String(decoding: payload, as: UTF8.self) : "{}"
+            return "\(direction.rawValue)\n└─ \(contentLabel)\(content)"
         }
 
         let eventType = event["event"] as? String ?? "unknown"
@@ -523,9 +552,25 @@ extension RoomController {
             of: "\n",
             with: "\n   "
         )
-        return "发送房间信令 (Outbound Room Signaling)\n"
+        return "\(direction.rawValue)\n"
             + "├─ \(XmaxLogger.localized("类型：", "Type: "))\(eventType)\n"
-            + "└─ \(XmaxLogger.localized("内容：", "Content: "))\n" + "   \(indentedMessage)"
+            + "└─ \(contentLabel)\n" + "   \(indentedMessage)"
+    }
+
+    /// Redacts credential fields in incoming JSON before it reaches the business log.
+    private static func redactSignalCredentials(_ value: Any) -> Any {
+        if let fields = value as? [String: Any] {
+            return fields.reduce(into: [String: Any]()) { result, field in
+                let key = field.key.lowercased().filter(\.isLetter)
+                let isCredential = key == "authorization" || key.hasSuffix("apikey")
+                    || key.hasSuffix("token") || key.hasSuffix("secret") || key.hasSuffix("password")
+                result[field.key] = isCredential ? "[REDACTED]" : redactSignalCredentials(field.value)
+            }
+        }
+        if let items = value as? [Any] {
+            return items.map(redactSignalCredentials)
+        }
+        return value
     }
 
     /// Returns the connected room's local account.

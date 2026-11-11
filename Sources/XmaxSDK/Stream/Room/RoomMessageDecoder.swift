@@ -17,6 +17,8 @@ struct RoomMessageDecoder {
     struct Message: Decodable {
         /// The business or provider-fragment event name.
         let event: String?
+        /// The optional generation task identifier.
+        let taskID: String?
         /// The logical command identifier acknowledged by the service.
         let xid: String?
         /// The receipt count or total number of provider fragments.
@@ -34,6 +36,29 @@ struct RoomMessageDecoder {
         enum CodingKeys: String, CodingKey {
             case event, xid, count, eventId, index, data
             case targetUserID = "user_id"
+            case taskID = "uid"
+        }
+
+        init(from decoder: any Decoder) throws {
+            let fields = try decoder.container(keyedBy: CodingKeys.self)
+            event = try fields.decodeIfPresent(String.self, forKey: .event)
+            taskID = try? fields.decode(String.self, forKey: .taskID)
+
+            if event == "xid_ack" || event == "__agora_chunk__" {
+                xid = try fields.decodeIfPresent(String.self, forKey: .xid)
+                count = try fields.decodeIfPresent(Int.self, forKey: .count)
+                targetUserID = try fields.decodeIfPresent(String.self, forKey: .targetUserID)
+                eventId = try fields.decodeIfPresent(String.self, forKey: .eventId)
+                index = try fields.decodeIfPresent(Int.self, forKey: .index)
+                data = try fields.decodeIfPresent(String.self, forKey: .data)
+            } else {
+                xid = nil
+                count = nil
+                targetUserID = nil
+                eventId = nil
+                index = nil
+                data = nil
+            }
         }
     }
 
@@ -65,12 +90,12 @@ struct RoomMessageDecoder {
     private var bytes = 0
 
     /// Decodes plain JSON or completed, possibly out-of-order Agora fragments.
-    mutating func decode(sender: String, data: Data) -> Message? {
+    mutating func decode(sender: String, data: Data) -> (message: Message, payload: Data)? {
         guard data.count <= 262144,
             let message = try? JSONDecoder().decode(Message.self, from: data)
         else { return nil }
         guard message.event == "__agora_chunk__" else {
-            return message
+            return (message, data)
         }
         guard let eventID = message.eventId, !eventID.isEmpty,
             let index = message.index, let count = message.count,
@@ -100,7 +125,9 @@ struct RoomMessageDecoder {
         records.removeValue(forKey: key)
         bytes -= record.bytes
         let joined = (0..<count).compactMap { record.parts[$0] }.joined()
-        return try? JSONDecoder().decode(Message.self, from: Data(joined.utf8))
+        let payload = Data(joined.utf8)
+        guard let message = try? JSONDecoder().decode(Message.self, from: payload) else { return nil }
+        return (message, payload)
     }
 
     /// Releases all partial messages when the room is invalidated.

@@ -13,6 +13,12 @@ import Foundation
 /// The transport interface used by Core.
 protocol StreamControlling: Sendable {
 
+    /// The most recently stopped task in the current RTC room.
+    var lastStoppedTaskID: String? { get }
+
+    /// Registers a listener for decoded RTC room messages.
+    func setRoomMessageListener(_ listener: RealtimeRoomMessageListener?) async
+
     /// The current media baseline and directional quality levels.
     var qualityConfiguration: QualityConfiguration? {
         get
@@ -147,6 +153,12 @@ protocol StreamControlling: Sendable {
     /// Disconnects the RTC room and releases media and generation state; safe when no room is
     /// active.
     func disconnect() async
+
+    /// Publishes the local input and optional audio in the current room.
+    func publishLocalStream(includeAudio: Bool) throws
+
+    /// Suspends local RTC publication while keeping the room and input open.
+    func unpublishLocalStream() throws
 
     /// Pushes external video during generation, ignoring frames without an active task.
     ///

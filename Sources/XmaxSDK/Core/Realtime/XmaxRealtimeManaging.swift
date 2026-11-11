@@ -122,6 +122,13 @@ public protocol XmaxRealtimeManaging: Sendable {
         _ listener: RealtimeStateListener?
     ) async
 
+    /// Registers a listener for decoded RTC room events. Pass `nil` to remove it.
+    ///
+    /// Register before connecting to observe messages as soon as the room opens. The listener
+    /// stays registered across room changes. Callbacks run serially on the signaling actor and
+    /// should return promptly.
+    func setRoomMessageListener(_ listener: RealtimeRoomMessageListener?) async
+
     /// Sets one listener for the result user's PCM and processed remote video.
     ///
     /// Audio is copied before remote-user mixing; video includes optional interpolation. Both use
@@ -378,6 +385,18 @@ public protocol XmaxRealtimeManaging: Sendable {
     /// Concurrent calls await the same cleanup task. Local streams can be created again after
     /// closing completes.
     func close() async
+
+    /// Stops the current generation and unpublishes local audio and video. The RTC room and
+    /// local camera, video, image, or external stream stay open. Start generation again to
+    /// republish the input and create a new task in the same room. This call waits for local
+    /// cleanup and transmission of the stop signal.
+    ///
+    /// A pending generation is cancelled. If it was still joining, the incomplete connection is
+    /// cancelled. A call without a connection or pending generation has no effect.
+    /// - Returns: The last task stopped in the retained room, or `nil` if no such task exists.
+    /// - Throws: An error if stopping, unpublishing, or clearing the local result fails.
+    @discardableResult
+    func stopGeneration() async throws -> String?
 
     /// Starts generation or updates conditions for the active task.
     ///

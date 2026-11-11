@@ -40,13 +40,18 @@ actor XmaxRealtimeLifecycleManager {
     enum TerminationScope: Int, Sendable {
 
         /// Releases the generation task while retaining the connection and local media.
-        case generation = -1
+        case generation = -2
+
+        /// Releases the task and RTC publication while retaining the connection and local media.
+        case publication = -1
 
         /// Releases connection and generation resources while retaining local media.
         case connection
 
         /// Releases connection, generation, and local media resources.
         case all
+
+        var retainsConnection: Bool { self == .generation || self == .publication }
 
         /// Determines whether this cleanup scope affects an operation.
         ///
@@ -57,7 +62,7 @@ actor XmaxRealtimeLifecycleManager {
             _ kind: OperationKind
         ) -> Bool {
             switch self {
-            case .generation:
+            case .generation, .publication:
                 kind == .generation || kind == .configuration || kind == .cameraSwitch
             case .connection:
                 kind != .media
@@ -76,13 +81,23 @@ actor XmaxRealtimeLifecycleManager {
         /// Whether usable local media remains after cleanup.
         let hasLocalMedia: Bool
 
+        /// An error encountered while stopping generation without leaving the room.
+        let error: XmaxError?
+
+        /// The last generation task stopped in the retained room.
+        let stoppedTaskID: String?
+
         /// Creates a cleanup result.
         init(
             sessionID: String? = nil,
-            hasLocalMedia: Bool = false
+            hasLocalMedia: Bool = false,
+            error: XmaxError? = nil,
+            stoppedTaskID: String? = nil
         ) {
             self.sessionID = sessionID
             self.hasLocalMedia = hasLocalMedia
+            self.error = error
+            self.stoppedTaskID = stoppedTaskID
         }
     }
 
@@ -429,6 +444,32 @@ actor XmaxRealtimeLifecycleManager {
         await task?.value
     }
 
+    /// Cancels the active generation operation and waits for its publication cleanup.
+    func stopGeneration() async throws -> String? {
+        if let termination, !termination.target.retainsConnection {
+            await termination.task.value
+            return nil
+        }
+
+        switch state.connectionState {
+        case .connecting where activeOperation?.generationRequest != nil:
+            await disconnect()
+        case .connected, .generating:
+            let pending = await requestTermination(.publication)
+            await pending.task.value
+            if let error = pending.cleanupError {
+                throw error
+            }
+            return pending.stoppedTaskID
+        default:
+            if let request = generationRequest {
+                request.cancel()
+                await request.waitForCompletion()
+            }
+        }
+        return nil
+    }
+
     /// Begins connection cleanup while preserving local media.
     ///
     /// - Parameter reason: The disconnection reason delivered with the final state.
@@ -451,10 +492,11 @@ actor XmaxRealtimeLifecycleManager {
             return nil
         }
 
-        return await requestTermination(
+        let pending = await requestTermination(
             .connection,
             reason: reason
         )
+        return pending.task
     }
 
     /// Terminates scoped operations, merging concurrent requests into the broadest cleanup scope.
@@ -466,11 +508,11 @@ actor XmaxRealtimeLifecycleManager {
         _ target: TerminationScope,
         reason: RealtimeReason = .normal
     ) async {
-        let task = await requestTermination(
+        let pending = await requestTermination(
             target,
             reason: reason
         )
-        await task.value
+        await pending.task.value
     }
 
     /// Terminates resources affected by a current failure and reports it in the final state.
@@ -491,16 +533,16 @@ actor XmaxRealtimeLifecycleManager {
         }
 
         // Ignore late remote failures during cleanup; media failures may still expand the cleanup scope.
-        if let termination, termination.target != .generation, target != .all {
+        if let termination, !termination.target.retainsConnection, target != .all {
             return
         }
 
-        let task = await requestTermination(
+        let pending = await requestTermination(
             target,
             error: error,
             reason: .failure(error)
         )
-        await task.value
+        await pending.task.value
     }
 }
 
@@ -779,6 +821,12 @@ private extension XmaxRealtimeLifecycleManager {
         /// The failure that triggered termination, or `nil` for an explicit request.
         var error: XmaxError?
 
+        /// The outcome of cleanup that keeps the RTC room open.
+        var cleanupError: XmaxError?
+
+        /// The last task stopped by cleanup that kept the RTC room open.
+        var stoppedTaskID: String?
+
         /// The server session identifier involved in cleanup.
         var sessionID: String?
 
@@ -838,10 +886,11 @@ private extension XmaxRealtimeLifecycleManager {
                     && operation.generationRequest !== generationRequest
                 let scope = isReplacement && state.connectionState == .connected
                     ? .generation : operation.lease.failureScope ?? TerminationScope.connection
-                terminationTask = await requestTermination(
+                let pending = await requestTermination(
                     scope,
                     origin: operation
                 )
+                terminationTask = pending.task
             }
 
             await terminationTask.value
@@ -855,13 +904,13 @@ private extension XmaxRealtimeLifecycleManager {
 
         let resolvedError = XmaxError.from(error)
         if operation.kind != .configuration, let scope = operation.lease.failureScope {
-            let terminationTask = await requestTermination(
+            let pending = await requestTermination(
                 scope,
                 error: resolvedError,
                 reason: .failure(resolvedError),
                 origin: operation
             )
-            await terminationTask.value
+            await pending.task.value
         } else {
             finish(operation)
             if operation.didBeginMediaPreparation, state.connectionState == .preparing {
@@ -884,13 +933,13 @@ private extension XmaxRealtimeLifecycleManager {
     ///   - origin: The failed operation requesting cleanup, or `nil` for an external termination
     ///     request.
     ///
-    /// - Returns: The shared cleanup task for the merged request.
+    /// - Returns: The merged request and its shared cleanup task.
     func requestTermination(
         _ target: TerminationScope,
         error: XmaxError? = nil,
         reason: RealtimeReason = .normal,
         origin: Operation? = nil
-    ) async -> Task<Void, Never> {
+    ) async -> Termination {
         if origin == nil {
             generationRequest?.cancel()
             generationRequest = nil
@@ -936,7 +985,7 @@ private extension XmaxRealtimeLifecycleManager {
             pending.waitForOperations.append(origin.waitForCompletion)
         }
 
-        if pending.target != .generation {
+        if !pending.target.retainsConnection {
             await setState(
                 RealtimeState(
                     connectionState: .disconnecting,
@@ -946,7 +995,7 @@ private extension XmaxRealtimeLifecycleManager {
             )
         }
 
-        return pending.task
+        return pending
     }
 
     /// Waits for affected operations, releases resources, and publishes the final state.
@@ -972,6 +1021,7 @@ private extension XmaxRealtimeLifecycleManager {
                 requestedTarget,
                 taskID
             )
+            pending.cleanupError = pending.cleanupError ?? result.error
             if let sessionID = result.sessionID {
                 pending.sessionID = sessionID
             }
@@ -979,9 +1029,10 @@ private extension XmaxRealtimeLifecycleManager {
             guard pending.target == requestedTarget, pending.waitForOperations.isEmpty else {
                 continue
             }
+            pending.stoppedTaskID = result.stoppedTaskID
 
             let connectionState: RealtimeConnectionState
-            if requestedTarget == .generation {
+            if requestedTarget.retainsConnection {
                 connectionState = .connected
             } else if requestedTarget == .all {
                 connectionState = .idle
@@ -992,7 +1043,7 @@ private extension XmaxRealtimeLifecycleManager {
             let finalState = RealtimeState(
                 connectionState: connectionState,
                 sessionID: pending.sessionID ?? state.sessionID,
-                reason: requestedTarget == .generation ? nil : pending.reason
+                reason: requestedTarget.retainsConnection ? nil : pending.reason
             )
 
             // Finish internal cleanup before notifying listeners so reentrant termination cannot be overwritten.
