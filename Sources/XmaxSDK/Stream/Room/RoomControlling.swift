@@ -92,11 +92,14 @@ protocol RoomControlling: Actor {
 
     /// Sends a stop signal if the room and task are active.
     ///
-    /// - Parameter taskID: The generation task to stop.
+    /// - Parameters:
+    ///   - taskID: The generation task to stop.
+    ///   - confirmationSender: The result user whose stop confirmation must precede another start.
     ///
     /// - Throws: An error if stop signaling cannot be encoded, enqueued, or sent.
     func stopGeneration(
-        taskID: String
+        taskID: String,
+        confirmationSender: String?
     ) async throws
 
     /// Submits a generation task's trajectory.

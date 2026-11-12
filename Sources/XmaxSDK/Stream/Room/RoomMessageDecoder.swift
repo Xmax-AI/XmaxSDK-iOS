@@ -54,7 +54,7 @@ struct RoomMessageDecoder {
             } else {
                 xid = nil
                 count = nil
-                targetUserID = nil
+                targetUserID = event == "video_stopped" ? try? fields.decode(String.self, forKey: .targetUserID) : nil
                 eventId = nil
                 index = nil
                 data = nil

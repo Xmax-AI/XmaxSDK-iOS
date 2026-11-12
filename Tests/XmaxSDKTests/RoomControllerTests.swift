@@ -266,6 +266,33 @@ final class RoomControllerTests: XCTestCase {
         XCTAssertTrue(rtcManager.controllerMessages.isEmpty)
         await controller.leave()
     }
+
+    func testPreviouslyReceivedStopConfirmationAllowsRestart() async throws {
+        let rtc = RtcManagingStub()
+        let controller = RoomController(rtcManager: rtc, redundantSignalingEnabled: false)
+        let format = RealtimeVideoFormat(width: 720, height: 1280, fps: 30)
+        let context = RealtimeContext(prompt: "test")
+        let received = expectation(description: "Service already reported the previous task stopped")
+        try await controller.join(connection: connection, ensureActive: {})
+        try await controller.startGeneration(taskID: "previous?os=ios", videoFormat: format, context: context)
+        await controller.setRoomMessageListener { message in
+            if message.event == "video_stopped" { received.fulfill() }
+        }
+        rtc.emitRoomMessage(sender: "bot-user", message: #"{"event":"video_stopped","uid":"previous"}"#)
+        await fulfillment(of: [received], timeout: 1)
+        try await controller.stopGeneration(taskID: "previous?os=ios", confirmationSender: "bot-user")
+
+        let sent = expectation(description: "Restart does not need a second stop notification")
+        let restart = Task {
+            try await controller.startGeneration(taskID: "next?os=ios", videoFormat: format, context: context)
+            sent.fulfill()
+        }
+        await fulfillment(of: [sent], timeout: 1)
+        restart.cancel()
+        try await restart.value
+        XCTAssertEqual(try rtc.controllerMessages.map { try decode($0)["event"] as? String }, ["start", "stop", "start"])
+        await controller.leave()
+    }
 }
 
 private extension RoomControllerTests {

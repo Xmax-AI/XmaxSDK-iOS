@@ -111,12 +111,11 @@ final class AgoraRtcRoom: RtcRoom, @unchecked Sendable {
             self.bridge = bridge
 
             let mediaListeners = self.mediaListeners
-            let sink = RtcRemoteVideoSink { uid, channelID, frame in
-                let callback = mediaListeners.videoListener(
+            let sink = RtcRemoteVideoSink { uid, channelID in
+                mediaListeners.videoListener(
                     for: uid,
                     channelID: channelID
                 )
-                callback?(frame)
             }
 
             videoSink = sink

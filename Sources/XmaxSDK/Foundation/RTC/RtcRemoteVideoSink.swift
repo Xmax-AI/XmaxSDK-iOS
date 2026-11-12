@@ -16,17 +16,17 @@ import Foundation
 /// Copies Agora decoded frames into buffers safe for asynchronous rendering.
 final class RtcRemoteVideoSink: NSObject, AgoraVideoFrameDelegate, @unchecked Sendable {
 
-    /// The handler receiving a numeric UID, channel, and SDK-owned buffer.
-    private let frameListener: @Sendable (UInt, String, RealtimeVideoFrame) -> Void
+    /// Resolves the listener bound when the native frame arrives.
+    private let listenerForFrame: @Sendable (UInt, String) -> RtcRemoteVideoFrameListener?
 
     /// Owns copied output buffers independently of native callback storage.
     private let copier = RtcPixelBufferCopier()
 
     /// Creates a remote decoded frame receiver.
     init(
-        frameListener: @escaping @Sendable (UInt, String, RealtimeVideoFrame) -> Void
+        listenerForFrame: @escaping @Sendable (UInt, String) -> RtcRemoteVideoFrameListener?
     ) {
-        self.frameListener = frameListener
+        self.listenerForFrame = listenerForFrame
     }
 
     /// Requests decoded frames as NV12 pixel buffers.
@@ -77,15 +77,14 @@ final class RtcRemoteVideoSink: NSObject, AgoraVideoFrameDelegate, @unchecked Se
         uid: UInt,
         channelId: String
     ) -> Bool {
-        guard let source = frame.pixelBuffer,
+        guard let listener = listenerForFrame(uid, channelId),
+            let source = frame.pixelBuffer,
             let buffer = copier.copy(source)
         else {
             return true
         }
 
-        frameListener(
-            uid,
-            channelId,
+        listener(
             RealtimeVideoFrame(
                 pixelBuffer: buffer,
                 presentationTimeStamp: CMTime(

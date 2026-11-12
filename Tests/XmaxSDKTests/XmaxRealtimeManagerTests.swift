@@ -1387,6 +1387,10 @@ final class XmaxRealtimeManagerTests: XCTestCase {
             }.count,
             1
         )
+        components.rtcManager.emitRoomMessage(
+            sender: "bot-user",
+            message: #"{"event":"video_stopped","uid":"\#(firstTaskID)"}"#
+        )
         await waitForEventCount(
             "start",
             count: 2,
@@ -1543,13 +1547,16 @@ final class XmaxRealtimeManagerTests: XCTestCase {
             await waitForEvent("start", rtcManager: rtc)
             rtc.emitRemoteVideoAvailable(stream: bot)
             await waitForRemoteFrameListener(rtcManager: rtc)
-            try rtc.emitRemoteVideoFrame()
+            let oldListener = try XCTUnwrap(rtc.remoteVideoFrameListener)
+            let oldFrame = RealtimeVideoFrame(pixelBuffer: try rtc.emitRemoteVideoFrame(), presentationTimeStamp: .zero)
             _ = try await first.value
             let firstState = await manager.currentState
+            let firstTaskID = try XCTUnwrap(firstState.taskID)
 
             // The bot can keep publishing the same RTC track across tasks.
             let stoppedTaskID = try await manager.stopGeneration()
             XCTAssertEqual(stoppedTaskID, firstState.taskID)
+            XCTAssertTrue(rtc.calls.contains(.subscribeRemoteVideo(userID: bot.userID, subscribe: false)))
             XCTAssertThrowsError(try rtc.emitRemoteVideoFrame())
             let stopEvent = try XCTUnwrap(decodedEvents(rtc).last { $0["event"] as? String == "stop" })
             XCTAssertEqual(stopEvent["uid"] as? String, firstState.taskID)
@@ -1568,8 +1575,36 @@ final class XmaxRealtimeManagerTests: XCTestCase {
             let restart = Task {
                 try await manager.startGeneration(localStream: local, context: RealtimeContext(prompt: "second"))
             }
+            let invalidReceipts = expectation(description: "Unrelated stop messages are delivered")
+            invalidReceipts.expectedFulfillmentCount = 3
+            await manager.setRoomMessageListener { message in
+                if message.event == "video_stopped" { invalidReceipts.fulfill() }
+            }
+            let stopped = #"{"event":"video_stopped","uid":"\#(firstTaskID)"}"#
+            rtc.emitRoomMessage(sender: "other-user", message: stopped)
+            rtc.emitRoomMessage(sender: bot.userID, message: #"{"event":"video_stopped","uid":"other-task"}"#)
+            rtc.emitRoomMessage(
+                sender: bot.userID,
+                message: #"{"event":"video_stopped","uid":"\#(firstTaskID)","user_id":"other-user"}"#
+            )
+            await fulfillment(of: [invalidReceipts], timeout: 1)
+            await manager.setRoomMessageListener(nil)
+            rtc.emitRemoteVideoAvailable(stream: bot)
+            XCTAssertEqual(decodedEvents(rtc).filter { $0["event"] as? String == "start" }.count, 1)
+            XCTAssertThrowsError(try rtc.emitRemoteVideoFrame())
+
+            rtc.emitRoomMessage(sender: bot.userID, message: stopped)
             await waitForEventCount("start", count: 2, rtcManager: rtc)
             await waitForRemoteFrameListener(rtcManager: rtc)
+            XCTAssertEqual(rtc.calls.filter { $0 == .subscribeRemoteVideo(userID: bot.userID, subscribe: true) }.count, 2)
+            let prematureReady = expectation(description: "Old subscription frame must not complete the restart")
+            prematureReady.isInverted = true
+            await manager.setStateListener { state in
+                if state.connectionState == .generating { prematureReady.fulfill() }
+            }
+            oldListener(oldFrame)
+            await fulfillment(of: [prematureReady], timeout: 0.05)
+            await manager.setStateListener(nil)
             try rtc.emitRemoteVideoFrame()
             _ = try await restart.value
             let restartedState = await manager.currentState

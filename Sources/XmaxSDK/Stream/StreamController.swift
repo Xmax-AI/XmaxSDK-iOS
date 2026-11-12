@@ -462,11 +462,16 @@ final class StreamController: StreamControlling, RtcEventListener,
     func stopGeneration(
         taskID: String
     ) async throws {
-        let stoppedTaskID = await stopStreamGeneration(taskID: taskID)
-        guard taskID.isEmpty || !stoppedTaskID.isEmpty else {
+        guard let stopped = await clearGeneration(taskID: taskID) else {
             return
         }
-        try await roomController.stopGeneration(taskID: stoppedTaskID)
+        try await roomController.stopGeneration(
+            taskID: stopped.taskID,
+            confirmationSender: stopped.resultUserID
+        )
+        if let error = stopped.videoSuspensionError {
+            throw error
+        }
     }
 
     /// Sends a generation task's trajectory.
@@ -692,6 +697,7 @@ final class StreamController: StreamControlling, RtcEventListener,
                     message: "Realtime generation is already active"
                 )
             }
+            try suspendRemoteVideoSubscriptions()
 
             var continuation: AsyncThrowingStream<Void, any Error>.Continuation?
             let stream = AsyncThrowingStream<Void, any Error> {
@@ -766,6 +772,14 @@ final class StreamController: StreamControlling, RtcEventListener,
         taskID: String,
         reason: String = "Realtime generation start cancelled"
     ) async -> String {
+        await clearGeneration(taskID: taskID, reason: reason)?.taskID ?? ""
+    }
+
+    /// Invalidates the task and suspends its result video until the next start is sent.
+    private func clearGeneration(
+        taskID: String,
+        reason: String = "Realtime generation start cancelled"
+    ) async -> StopResult? {
         let result = operationLock.withLock { () -> StopResult? in
             let currentTaskID = stateLock.withLock {
                 state.generationTask?.id ?? ""
@@ -774,32 +788,42 @@ final class StreamController: StreamControlling, RtcEventListener,
                 return nil
             }
 
-            let stoppedState = stateLock.withLock {
-                () -> (
-                    GenerationWaiter?,
-                    Set<String>
-                ) in
+            let stoppedState = stateLock.withLock { () -> (
+                waiter: GenerationWaiter?, audioUsers: Set<String>, resultUser: String?
+            ) in
                 let waiter = state.generationWaiter
-                let remoteAudioUserIDs =
-                    state.subscribedRemoteAudioUserIDs
+                let remoteAudioUserIDs = state.subscribedRemoteAudioUserIDs
+                let resultUserID = state.generationTask?.resultUserID
                 if !currentTaskID.isEmpty {
                     state.lastStoppedTaskID = currentTaskID
+                }
+                if resultUserID != nil {
+                    state.remoteVideoSuspended = true
                 }
                 state.generationTask = nil
                 state.generationWaiter = nil
                 state.activeRemoteStream = nil
                 state.subscribedRemoteAudioUserIDs.removeAll()
-                return (waiter, remoteAudioUserIDs)
+                return (waiter, remoteAudioUserIDs, resultUserID)
             }
 
+            let videoSuspensionError: XmaxError?
+            do {
+                try suspendRemoteVideoSubscriptions()
+                videoSuspensionError = nil
+            } catch {
+                videoSuspensionError = XmaxError.from(error)
+            }
             return StopResult(
                 taskID: currentTaskID,
-                waiter: stoppedState.0,
-                remoteAudioUserIDs: stoppedState.1
+                waiter: stoppedState.waiter,
+                remoteAudioUserIDs: stoppedState.audioUsers,
+                resultUserID: stoppedState.resultUser,
+                videoSuspensionError: videoSuspensionError
             )
         }
         guard let result else {
-            return ""
+            return nil
         }
 
         await roomController.cancelGenerationCommands(taskID: result.taskID)
@@ -824,7 +848,7 @@ final class StreamController: StreamControlling, RtcEventListener,
         }
 
         await clearRemoteStream()
-        return result.taskID
+        return result
     }
 
     /// Releases generation, publication, and subscription resources.
@@ -894,6 +918,10 @@ final class StreamController: StreamControlling, RtcEventListener,
             }
 
             if published {
+                _ = stateLock.withLock { state.publishedRemoteUserIDs.insert(userID) }
+                guard !currentState.remoteVideoSuspended else {
+                    return
+                }
                 subscribeRemoteVideo(userID: userID)
                 confirmRemoteStream(
                     RemoteStream(
@@ -902,7 +930,8 @@ final class StreamController: StreamControlling, RtcEventListener,
                     )
                 )
             } else {
-                _ = stateLock.withLock {
+                stateLock.withLock {
+                    state.publishedRemoteUserIDs.remove(userID)
                     state.subscribedRemoteUserIDs.remove(userID)
                 }
                 if currentState.activeRemoteStream?.userID == userID {
@@ -946,30 +975,27 @@ private extension StreamController {
     func confirmPublishedRemoteStream(
         taskID: String
     ) {
-        let stream = stateLock.withLock { () -> RemoteStream? in
-            guard let waiter = state.generationWaiter, waiter.taskID == taskID else {
-                return nil
-            }
+        operationLock.withLock {
+            let stream = stateLock.withLock { () -> RemoteStream? in
+                guard let waiter = state.generationWaiter, waiter.taskID == taskID else {
+                    return nil
+                }
 
-            waiter.signalSent = true
-            guard
-                let userID = state.subscribedRemoteUserIDs.first(
-                    where: {
-                        state.botName.isEmpty || $0 == state.botName
-                    }
+                waiter.signalSent = true
+                state.remoteVideoSuspended = false
+                guard let userID = state.publishedRemoteUserIDs.first else {
+                    return nil
+                }
+                return RemoteStream(
+                    roomID: state.roomID,
+                    userID: userID
                 )
-            else {
-                return nil
             }
 
-            return RemoteStream(
-                roomID: state.roomID,
-                userID: userID
-            )
-        }
-
-        if let stream {
-            confirmRemoteStream(stream)
+            if let stream {
+                subscribeRemoteVideo(userID: stream.userID)
+                confirmRemoteStream(stream)
+            }
         }
     }
 
@@ -1006,6 +1032,7 @@ private extension StreamController {
             stateLock.withLock {
                 if state.generationTask?.id == waiter.taskID {
                     state.activeRemoteStream = stream
+                    state.generationTask?.resultUserID = stream.userID
                     qualityController.setDownlinkVideoStatisticsUser(stream.userID)
                 }
             }
@@ -1041,6 +1068,12 @@ private extension StreamController {
         /// The remote users with subscribed video.
         var subscribedRemoteUserIDs: Set<String> = []
 
+        /// Published users are retained even while the old subscription is paused.
+        var publishedRemoteUserIDs: Set<String> = []
+
+        /// Whether to keep remote video unsubscribed between tasks.
+        var remoteVideoSuspended = false
+
         /// The remote users with subscribed audio.
         var subscribedRemoteAudioUserIDs: Set<String> = []
 
@@ -1062,6 +1095,9 @@ private extension StreamController {
 
         /// The unique generation task identifier.
         let id: String
+
+        /// The RTC user that published this task's result video.
+        var resultUserID: String?
     }
 
     /// A result stream waiter with timeout and asynchronous notification.
@@ -1104,6 +1140,23 @@ private extension StreamController {
 
         /// The remote audio subscriptions to cancel.
         let remoteAudioUserIDs: Set<String>
+
+        /// The expected sender for the stopped task's confirmation.
+        let resultUserID: String?
+
+        /// An error pausing video, with unsuccessful subscriptions retained for retry.
+        let videoSuspensionError: XmaxError?
+    }
+
+    /// Unsubscribes previous video while the operation lock excludes publication callbacks.
+    func suspendRemoteVideoSubscriptions() throws {
+        let users = stateLock.withLock {
+            state.remoteVideoSuspended ? state.subscribedRemoteUserIDs : []
+        }
+        for userID in users.sorted() {
+            try rtcManager.subscribeRemoteVideo(userID: userID, subscribe: false)
+            _ = stateLock.withLock { state.subscribedRemoteUserIDs.remove(userID) }
+        }
     }
 
     /// Subscribes to remote video and reports failure to startup or runtime handling.

@@ -49,6 +49,12 @@ actor RoomController: RoomControlling {
     /// The expected service sender assigned by the session.
     private var botID: String?
 
+    /// A stopped task that published video and must finish before another start in this room.
+    private var pendingGenerationStop: PendingGenerationStop?
+
+    /// The most recent start and whether the configured bot has already reported its end.
+    private var latestGeneration: (taskID: Substring, stopped: Bool)?
+
     /// The application listener for decoded messages from the current room.
     private var messageListener: RealtimeRoomMessageListener?
 
@@ -235,7 +241,14 @@ actor RoomController: RoomControlling {
         faceRestoration: Bool = false,
         paddingContain: Bool = false
     ) async throws {
+        let operationID = roomOperationID
+        try await waitForGenerationStop()
+        try Task.checkCancellation()
+        guard roomOperationID == operationID else {
+            throw XmaxError(code: .cancelled, message: "RTC room changed while starting generation")
+        }
         let userID = try requireUserID()
+        latestGeneration = (taskID.prefix { $0 != "?" }, false)
         let sending = try await commands.send(
             kind: .start,
             taskID: taskID,
@@ -329,17 +342,33 @@ actor RoomController: RoomControlling {
 
     /// Sends a stop signal if the room and task are active.
     ///
-    /// - Parameter taskID: The generation task to stop.
+    /// - Parameters:
+    ///   - taskID: The generation task to stop.
+    ///   - confirmationSender: The result user whose stop confirmation must precede another start.
     ///
     /// - Throws: An error if stop signaling cannot be encoded, enqueued, or sent.
     func stopGeneration(
-        taskID: String
+        taskID: String,
+        confirmationSender: String? = nil
     ) async throws {
+        let operationID = roomOperationID
         await cancelGenerationCommands(taskID: taskID)
         guard !taskID.isEmpty,
+            roomOperationID == operationID,
             case .joined(let userID) = state
         else {
             return
+        }
+
+        let generationID = taskID.prefix { $0 != "?" }
+        let alreadyStopped = confirmationSender == botID
+            && latestGeneration?.taskID == generationID && latestGeneration?.stopped == true
+        if let confirmationSender, !alreadyStopped {
+            finishGenerationStop(throwing: XmaxError(code: .cancelled, message: "RTC generation stop was replaced"))
+            pendingGenerationStop = PendingGenerationStop(
+                taskID: generationID,
+                sender: confirmationSender
+            )
         }
 
         let sending = try send(
@@ -399,6 +428,19 @@ actor RoomController: RoomControlling {
         else { return }
 
         XmaxLogger.room.info(message: Self.formatSignalLog(payload, direction: .inbound))
+        if message.event == "video_stopped",
+            message.targetUserID == nil || message.targetUserID == userID,
+            let taskID = message.taskID?.prefix(while: { $0 != "?" })
+        {
+            if botID == sender, latestGeneration?.taskID == taskID {
+                latestGeneration?.stopped = true
+            }
+            if let pendingGenerationStop, sender == pendingGenerationStop.sender,
+                pendingGenerationStop.taskID == taskID
+            {
+                finishGenerationStop()
+            }
+        }
         if let event = message.event {
             messageListener?(RealtimeRoomMessage(
                 senderUserID: sender,
@@ -414,6 +456,23 @@ actor RoomController: RoomControlling {
             message.event == "xid_ack", let xid = message.xid, let count = message.count
         else { return }
         await commands.acknowledge(xid: xid, count: count)
+    }
+
+    /// Waits for the previous result producer to stop, within the caller's generation timeout.
+    private func waitForGenerationStop() async throws {
+        guard pendingGenerationStop != nil else { return }
+        let waiterID = UUID()
+        let (stream, continuation) = AsyncThrowingStream<Void, any Error>.makeStream()
+        pendingGenerationStop?.waiters[waiterID] = continuation
+        defer { pendingGenerationStop?.waiters.removeValue(forKey: waiterID) }
+        for try await _ in stream {}
+    }
+
+    /// Completes the pending stop receipt on confirmation or room teardown.
+    private func finishGenerationStop(throwing error: XmaxError? = nil) {
+        let stop = pendingGenerationStop
+        pendingGenerationStop = nil
+        stop?.waiters.values.forEach { $0.finish(throwing: error) }
     }
 
     /// Forwards caller cancellation to unsent fragments and scheduled retries.
@@ -488,6 +547,12 @@ extension RoomController {
         let task: Task<Void, Never>
     }
 
+    private struct PendingGenerationStop {
+        let taskID: Substring
+        let sender: String
+        var waiters: [UUID: AsyncThrowingStream<Void, any Error>.Continuation] = [:]
+    }
+
     /// Stops the heartbeat and completes the current room leave.
     ///
     /// - Parameter operationID: The leave operation identifier to validate.
@@ -497,6 +562,8 @@ extension RoomController {
         state = .idle
         roomOperationID = nil
         botID = nil
+        latestGeneration = nil
+        finishGenerationStop(throwing: XmaxError(code: .cancelled, message: "RTC room was closed"))
         rtcManager.setRoomMessageListener(nil)
         decoder.reset()
         await commands.close()

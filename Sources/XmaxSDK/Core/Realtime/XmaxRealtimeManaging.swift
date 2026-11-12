@@ -389,7 +389,8 @@ public protocol XmaxRealtimeManaging: Sendable {
     /// Stops the current generation and unpublishes local audio and video. The RTC room and
     /// local camera, video, image, or external stream stay open. Start generation again to
     /// republish the input and create a new task in the same room. This call waits for local
-    /// cleanup and transmission of the stop signal.
+    /// cleanup and transmission of the stop signal. If the previous task had a result stream,
+    /// the next start waits for the service to confirm that task has stopped.
     ///
     /// A pending generation is cancelled. If it was still joining, the incomplete connection is
     /// cancelled. A call without a connection or pending generation has no effect.

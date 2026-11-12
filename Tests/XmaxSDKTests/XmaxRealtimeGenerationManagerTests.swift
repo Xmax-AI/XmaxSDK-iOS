@@ -395,6 +395,10 @@ final class XmaxRealtimeGenerationManagerTests: XCTestCase {
             stream: remoteStream)
         let firstTaskID = try await firstStart.value
         try await components.manager.stop(taskID: firstTaskID)
+        components.rtcManager.emitRoomMessage(
+            sender: remoteStream.userID,
+            message: #"{"event":"video_stopped","uid":"\#(firstTaskID)"}"#
+        )
         let cachedFaceRestoration = await components.manager.cachedFaceRestoration
         XCTAssertTrue(cachedFaceRestoration)
 

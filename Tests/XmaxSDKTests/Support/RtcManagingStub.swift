@@ -141,6 +141,10 @@ final class RtcManagingStub: RtcManaging, @unchecked Sendable {
         lock.withLock { storedCalls }
     }
 
+    var remoteVideoFrameListener: RtcRemoteVideoFrameListener? {
+        lock.withLock { storedRemoteVideoFrameListener }
+    }
+
     var encodingConfigurations: [VideoEncodingConfiguration] {
         calls.compactMap { call in
             guard case let .configureVideoEncoding(configuration) = call else {
