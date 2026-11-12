@@ -3,6 +3,25 @@ import XCTest
 @testable import XmaxSDK
 
 final class RoomCommandControllerTests: XCTestCase {
+    func testSingleSendModeDoesNotScheduleRetriesOrRelay() async throws {
+        let redundantWork = expectation(description: "No redundant signaling")
+        redundantWork.isInverted = true
+        let rtc = CommandTestTransport()
+        let controller = RoomCommandController(
+            sendMessage: rtc.send,
+            sleep: { _ in redundantWork.fulfill() },
+            redundantSignalingEnabled: false,
+            relayMessage: { _ in redundantWork.fulfill() }
+        )
+
+        for kind in [RoomCommandController.Kind.start, .changeCondition, .changeTargetSize] {
+            try await command(controller, kind: kind).value
+        }
+        await fulfillment(of: [redundantWork], timeout: 0.05)
+        XCTAssertEqual(rtc.messages.count, 3)
+        await controller.close()
+    }
+
     func testMissingAckRetriesFrozenPayloadWithoutBlockingInitialSend() async throws {
         let clock = CommandTestClock()
         let recorder = CommandTestTransport()

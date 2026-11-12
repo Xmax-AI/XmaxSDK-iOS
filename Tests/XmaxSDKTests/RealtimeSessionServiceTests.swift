@@ -17,7 +17,7 @@ final class RealtimeSessionServiceTests: XCTestCase {
     func testCreateSessionUsesPublicModelIdentifiers() async throws {
         XCTAssertEqual(
             RealtimeModel.allCases.map(\.rawValue),
-            ["x2.1"]
+            ["x2.1", "x2.1-flash"]
         )
         for model in RealtimeModel.allCases {
             let payload = try JSONSerialization.data(withJSONObject: [

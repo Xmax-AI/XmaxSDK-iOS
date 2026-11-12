@@ -34,6 +34,9 @@ actor RoomController: RoomControlling {
     /// The retry clock retained when a new room gets a fresh scheduler.
     private let commandSleep: @Sendable (UInt64) async throws -> Void
 
+    /// Whether generation controls use background RTC retries and HTTP relay.
+    private let redundantSignalingEnabled: Bool
+
     /// Submits one HTTP copy of each generation control for the current session.
     private let relayMessage: (@Sendable (String) async throws -> Void)?
 
@@ -54,18 +57,26 @@ actor RoomController: RoomControlling {
     /// - Parameters:
     ///   - rtcManager: The RTC manager.
     ///   - timing: The shared startup timing recorder.
+    ///   - redundantSignalingEnabled: Whether to retry and relay generation controls.
     init(
         rtcManager: any RtcManaging,
         timing: RealtimeTiming = RealtimeTiming(),
         commandSleep: @escaping @Sendable (UInt64) async throws -> Void = {
             try await Task.sleep(nanoseconds: $0)
         },
+        redundantSignalingEnabled: Bool = true,
         relayMessage: (@Sendable (String) async throws -> Void)? = nil
     ) {
         self.rtcManager = rtcManager
         self.commandSleep = commandSleep
+        self.redundantSignalingEnabled = redundantSignalingEnabled
         self.relayMessage = relayMessage
-        commands = Self.makeCommands(rtcManager: rtcManager, sleep: commandSleep, relayMessage: relayMessage)
+        commands = Self.makeCommands(
+            rtcManager: rtcManager,
+            sleep: commandSleep,
+            redundantSignalingEnabled: redundantSignalingEnabled,
+            relayMessage: relayMessage
+        )
         heartbeat = RoomHeartbeat(rtcManager: rtcManager)
         self.timing = timing
     }
@@ -78,12 +89,19 @@ actor RoomController: RoomControlling {
         commandSleep: @escaping @Sendable (UInt64) async throws -> Void = {
             try await Task.sleep(nanoseconds: $0)
         },
+        redundantSignalingEnabled: Bool = true,
         relayMessage: (@Sendable (String) async throws -> Void)? = nil
     ) {
         self.rtcManager = rtcManager
         self.commandSleep = commandSleep
+        self.redundantSignalingEnabled = redundantSignalingEnabled
         self.relayMessage = relayMessage
-        commands = Self.makeCommands(rtcManager: rtcManager, sleep: commandSleep, relayMessage: relayMessage)
+        commands = Self.makeCommands(
+            rtcManager: rtcManager,
+            sleep: commandSleep,
+            redundantSignalingEnabled: redundantSignalingEnabled,
+            relayMessage: relayMessage
+        )
         self.heartbeat = heartbeat
         self.timing = timing
     }
@@ -113,7 +131,12 @@ actor RoomController: RoomControlling {
         }
 
         let operationID = UUID()
-        commands = Self.makeCommands(rtcManager: rtcManager, sleep: commandSleep, relayMessage: relayMessage)
+        commands = Self.makeCommands(
+            rtcManager: rtcManager,
+            sleep: commandSleep,
+            redundantSignalingEnabled: redundantSignalingEnabled,
+            relayMessage: relayMessage
+        )
         state = .joining(id: operationID)
         heartbeat.stop()
 
@@ -414,6 +437,7 @@ extension RoomController {
     fileprivate static func makeCommands(
         rtcManager: any RtcManaging,
         sleep: @escaping @Sendable (UInt64) async throws -> Void,
+        redundantSignalingEnabled: Bool,
         relayMessage: (@Sendable (String) async throws -> Void)?
     ) -> RoomCommandController {
         RoomCommandController(
@@ -423,6 +447,7 @@ extension RoomController {
                 return try rtcManager.sendRoomMessage(message, reportFailure: false)
             },
             sleep: sleep,
+            redundantSignalingEnabled: redundantSignalingEnabled,
             relayMessage: relayMessage
         )
     }

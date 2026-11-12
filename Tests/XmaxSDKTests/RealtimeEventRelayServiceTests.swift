@@ -102,8 +102,9 @@ final class RealtimeEventRelayServiceTests: XCTestCase {
         XCTAssertEqual(api.requests.count, 1)
     }
 
-    func testFactoryRelaysAllControlsAndSupportsSessionsWithoutModelInstance() async throws {
-        for modelID in [nil, "instance"] as [String?] {
+    func testFactoryRelaysControlsOnlyForX21WithAModelInstance() async throws {
+        let cases: [(RealtimeModel, String?)] = [(.x2_1, nil), (.x2_1, "instance"), (.x2_1_flash, "instance")]
+        for (model, modelID) in cases {
             var payload: [String: Any] = [
                 "sessionUid": "session", "status": "ACTIVE",
                 "modelExtra": [
@@ -128,7 +129,7 @@ final class RealtimeEventRelayServiceTests: XCTestCase {
             }
             let rtc = RtcManagingStub()
             let options = RealtimeConfiguration(
-                model: .x2_1,
+                model: model,
                 isFrameInterpolationEnabled: false,
                 isAdaptiveQualityEnabled: false
             )
@@ -161,7 +162,8 @@ final class RealtimeEventRelayServiceTests: XCTestCase {
             _ = try await starting.value
             try await manager.startGeneration(context: RealtimeContext(prompt: "second"))
             try await manager.setDownlinkQualityLevel(.l3)
-            if modelID != nil {
+            let shouldRelay = model == .x2_1 && modelID != nil
+            if shouldRelay {
                 await eventually {
                     api.requests.filter { $0.path == "/client-event/relay" }.count == 3
                 }
@@ -185,8 +187,14 @@ final class RealtimeEventRelayServiceTests: XCTestCase {
                 }
             }
             await manager.close()
-            if modelID == nil {
+            if !shouldRelay {
                 XCTAssertFalse(api.requests.contains { $0.path == "/client-event/relay" })
+            }
+            if model == .x2_1_flash {
+                let start = try XCTUnwrap(messages(rtc).first { $0.contains("\"start\"") })
+                let event = try JSONSerialization.jsonObject(with: Data(start.utf8)) as? [String: Any]
+                let params = try XCTUnwrap(event?["params"] as? [String: Any])
+                XCTAssertEqual(params["size"] as? [Int], [1280, 704])
             }
         }
     }

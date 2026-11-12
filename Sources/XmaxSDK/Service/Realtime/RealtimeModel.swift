@@ -17,9 +17,15 @@ public enum RealtimeModel: String, CaseIterable, Sendable {
     /// The X2.1 realtime generation model.
     case x2_1 = "x2.1"
 
+    /// The X2.1 Flash realtime generation model.
+    case x2_1_flash = "x2.1-flash"
+
     /// The model's display name.
     public var displayName: String {
-        "X2.1"
+        switch self {
+        case .x2_1: "X2.1"
+        case .x2_1_flash: "X2.1 Flash"
+        }
     }
 
     /// The supported frame dimensions and recommended frame rates.
@@ -28,33 +34,20 @@ public enum RealtimeModel: String, CaseIterable, Sendable {
     /// ratio and use the closest generation canvas. An empty array allows variable canvas
     /// dimensions, resolved using pixel limits and alignment.
     public var supportedVideoFormats: [RealtimeVideoFormat] {
-        [
-            RealtimeVideoFormat(
-                width: 1920,
-                height: 1080,
-                fps: defaultFrameRate
-            ),
-            RealtimeVideoFormat(
-                width: 1080,
-                height: 1920,
-                fps: defaultFrameRate
-            ),
-            RealtimeVideoFormat(
-                width: 1408,
-                height: 1408,
-                fps: defaultFrameRate
-            ),
-            RealtimeVideoFormat(
-                width: 1152,
-                height: 1536,
-                fps: defaultFrameRate
-            ),
-            RealtimeVideoFormat(
-                width: 1536,
-                height: 1152,
-                fps: defaultFrameRate
-            )
-        ]
+        let presets: [RealtimeCameraPreset]
+        switch self {
+        case .x2_1:
+            presets = [
+                .resolution1920x1080, .resolution1080x1920, .resolution1408x1408,
+                .resolution1152x1536, .resolution1536x1152
+            ]
+        case .x2_1_flash:
+            presets = [
+                .resolution704x1280, .resolution1280x704, .resolution960x960,
+                .resolution1024x768, .resolution768x1024
+            ]
+        }
+        return presets.map(videoFormat(for:))
     }
 
     /// The minimum local media and uplink area, in pixels; also limits variable generation canvases.
@@ -64,7 +57,10 @@ public enum RealtimeModel: String, CaseIterable, Sendable {
 
     /// The maximum local media area, in pixels; also limits variable generation canvases.
     public var maximumInputPixels: Int {
-        2100000
+        switch self {
+        case .x2_1: 2_100_000
+        case .x2_1_flash: 960 * 960
+        }
     }
 
     /// The dimension alignment, in pixels, used to resolve variable generation canvases.
@@ -79,9 +75,17 @@ public enum RealtimeModel: String, CaseIterable, Sendable {
 
     /// The default camera capture format.
     public var defaultCameraVideoFormat: RealtimeVideoFormat {
-        RealtimeVideoFormat(
-            width: 1080,
-            height: 1920,
+        switch self {
+        case .x2_1: videoFormat(for: .resolution1080x1920)
+        case .x2_1_flash: videoFormat(for: .resolution704x1280)
+        }
+    }
+
+    private func videoFormat(for preset: RealtimeCameraPreset) -> RealtimeVideoFormat {
+        let size = preset.size
+        return RealtimeVideoFormat(
+            width: Int(size.width),
+            height: Int(size.height),
             fps: defaultFrameRate
         )
     }

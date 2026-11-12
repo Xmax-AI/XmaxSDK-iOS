@@ -48,7 +48,7 @@ actor RoomCommandController {
         /// The number of attempts submitted to the transport.
         var attempts = 0
         /// Whether further redundant attempts may be submitted.
-        var retrying = true
+        var retrying: Bool
         /// Whether any complete attempt has succeeded.
         var sent = false
         /// Whether a lifecycle or supersession boundary invalidated the command.
@@ -61,6 +61,7 @@ actor RoomCommandController {
             xid: String,
             message: String,
             ensureCurrent: @escaping @Sendable () throws -> Void,
+            retrying: Bool,
             completion: AsyncThrowingStream<Void, any Error>.Continuation,
             result: Task<Void, any Error>
         ) {
@@ -69,6 +70,7 @@ actor RoomCommandController {
             self.xid = xid
             self.message = message
             self.ensureCurrent = ensureCurrent
+            self.retrying = retrying
             self.completion = completion
             self.result = result
         }
@@ -82,6 +84,9 @@ actor RoomCommandController {
 
     /// Sleeps relative to the first attempt; injectable for deterministic retry tests.
     private let sleep: @Sendable (UInt64) async throws -> Void
+
+    /// Whether generation controls use background RTC retries and HTTP relay.
+    private let redundantSignalingEnabled: Bool
 
     /// Commands with pending RTC or HTTP work, indexed by their shared identifier.
     private var pending: [String: Command] = [:]
@@ -98,10 +103,12 @@ actor RoomCommandController {
         sleep: @escaping @Sendable (UInt64) async throws -> Void = {
             try await Task.sleep(nanoseconds: $0)
         },
+        redundantSignalingEnabled: Bool = true,
         relayMessage: (@Sendable (String) async throws -> Void)? = nil
     ) {
         self.sendMessage = sendMessage
         self.sleep = sleep
+        self.redundantSignalingEnabled = redundantSignalingEnabled
         self.relayMessage = relayMessage
     }
 
@@ -134,6 +141,7 @@ actor RoomCommandController {
             xid: xid,
             message: message,
             ensureCurrent: ensureCurrent,
+            retrying: redundantSignalingEnabled,
             completion: completion,
             result: result
         )
@@ -191,6 +199,14 @@ actor RoomCommandController {
     /// Starts the two background rounds at 0/300/1000 and 3000/3300/4000 ms.
     private func begin(_ command: Command) {
         guard !command.cancelled else { return }
+        if command.retrying {
+            scheduleRetries(command)
+            beginRelay(command)
+        }
+        attempt(command, initial: true)
+    }
+
+    private func scheduleRetries(_ command: Command) {
         for delay: UInt64 in [300, 1000, 3000, 3300, 4000, 6000] {
             command.scheduled.append(
                 Task {
@@ -209,8 +225,6 @@ actor RoomCommandController {
                 }
             )
         }
-        beginRelay(command)
-        attempt(command, initial: true)
     }
 
     /// Starts one HTTP submission whose lifetime is independent of RTC receipts and retries.
@@ -241,7 +255,7 @@ actor RoomCommandController {
 
     /// Submits an attempt while retaining cancellation until native sending settles.
     private func attempt(_ command: Command, initial: Bool) {
-        guard command.retrying, !command.cancelled else { return }
+        guard !command.cancelled, initial || command.retrying else { return }
         do {
             try command.ensureCurrent()
         } catch {

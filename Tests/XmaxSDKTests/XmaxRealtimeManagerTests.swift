@@ -2250,15 +2250,17 @@ final class XmaxRealtimeManagerTests: XCTestCase {
     }
 
     func testCameraPresetCreationUsesAllSupportedModelFormats() async throws {
-        for preset in RealtimeCameraPreset.allCases {
-            let components = makeComponents(cameraMediaService: MediaService(model: .x2_1))
-            let manager: any XmaxRealtimeManaging = components.manager
-            let stream = try await manager.createLocalCameraStream(preset: preset)
-            XCTAssertEqual(stream.videoTrack?.videoFormat?.size, preset.size)
-            XCTAssertEqual(stream.videoTrack?.videoFormat?.fps, RealtimeModel.x2_1.defaultFrameRate)
-            let currentPreset = await manager.currentCameraPreset
-            XCTAssertEqual(currentPreset, preset)
-            await manager.close()
+        for model in RealtimeModel.allCases {
+            for format in model.supportedVideoFormats {
+                let preset = try XCTUnwrap(RealtimeCameraPreset.allCases.first { $0.size == format.size })
+                let components = makeComponents(cameraMediaService: MediaService(model: model), model: model)
+                let manager: any XmaxRealtimeManaging = components.manager
+                let stream = try await manager.createLocalCameraStream(preset: preset)
+                XCTAssertEqual(stream.videoTrack?.videoFormat, format)
+                let currentPreset = await manager.currentCameraPreset
+                XCTAssertEqual(currentPreset, preset)
+                await manager.close()
+            }
         }
     }
 

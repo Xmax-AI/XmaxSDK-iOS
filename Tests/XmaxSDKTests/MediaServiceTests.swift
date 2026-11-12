@@ -332,7 +332,7 @@ final class MediaServiceTests: XCTestCase {
         }
     }
 
-    func testX21ModelCameraBuckets() throws {
+    func testModelCameraBuckets() throws {
         for model in RealtimeModel.allCases {
             let service = MediaService(model: model)
             for size in model.supportedVideoFormats.map(\.size) {
@@ -346,8 +346,22 @@ final class MediaServiceTests: XCTestCase {
             }
             XCTAssertEqual(
                 try service.resolveGenerationSize(CGSize(width: 720, height: 1280)),
-                CGSize(width: 1080, height: 1920)
+                model.defaultCameraVideoFormat.size
             )
+        }
+    }
+
+    func testFlashUsesItsOwnInputLimitAndGenerationCanvas() throws {
+        let service = MediaService(model: .x2_1_flash)
+        let sourceSize = CGSize(width: 1920, height: 1080)
+
+        XCTAssertThrowsError(try service.resolveMediaSize(sourceSize, source: .camera)) { error in
+            XCTAssertEqual((error as? XmaxError)?.code, .invalidConfiguration)
+        }
+        for source in [RealtimeMediaSource.image, .video, .external] {
+            let size = try service.resolveMediaSize(sourceSize, source: source)
+            XCTAssertEqual(size, CGSize(width: 1280, height: 720))
+            XCTAssertEqual(try service.resolveGenerationSize(size), CGSize(width: 1280, height: 704))
         }
     }
 

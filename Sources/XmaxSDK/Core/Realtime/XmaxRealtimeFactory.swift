@@ -83,6 +83,7 @@ enum XmaxRealtimeFactory {
             roomController: RoomController(
                 rtcManager: rtcManager,
                 timing: timing,
+                redundantSignalingEnabled: options.model == .x2_1,
                 relayMessage: { message in
                     try Task.checkCancellation()
                     let session = await connectionReference.currentSession

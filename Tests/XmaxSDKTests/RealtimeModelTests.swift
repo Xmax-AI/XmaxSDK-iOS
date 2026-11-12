@@ -13,35 +13,49 @@ import XCTest
 @testable import XmaxSDK
 
 final class RealtimeModelTests: XCTestCase {
-    func testOnlyX21ModelIsAvailable() {
-        XCTAssertEqual(RealtimeModel.allCases, [.x2_1])
+    func testAvailableModels() {
+        XCTAssertEqual(RealtimeModel.allCases, [.x2_1, .x2_1_flash])
         XCTAssertNil(RealtimeModel(rawValue: "x2.0"))
         XCTAssertNil(RealtimeModel(rawValue: "x2.1.1-preview-cn"))
         XCTAssertNil(RealtimeModel(rawValue: "x2.1.1-preview-us"))
     }
 
     func testX21ModelCameraFormats() {
-        let models = RealtimeModel.allCases
-        XCTAssertEqual(models.map(\.rawValue), ["x2.1"])
-        XCTAssertEqual(models.map(\.displayName), ["X2.1"])
+        let model = RealtimeModel.x2_1
+        XCTAssertEqual(model.displayName, "X2.1")
+        XCTAssertEqual(model.defaultFrameRate, 30)
+        XCTAssertEqual(model.minimumInputPixels, 200000)
+        XCTAssertEqual(model.maximumInputPixels, 2100000)
+        XCTAssertEqual(model.inputSizeAlignment, 32)
+        XCTAssertEqual(
+            model.defaultCameraVideoFormat,
+            RealtimeVideoFormat(width: 1080, height: 1920, fps: 30)
+        )
+        XCTAssertEqual(model.supportedVideoFormats, [
+            RealtimeVideoFormat(width: 1920, height: 1080, fps: 30),
+            RealtimeVideoFormat(width: 1080, height: 1920, fps: 30),
+            RealtimeVideoFormat(width: 1408, height: 1408, fps: 30),
+            RealtimeVideoFormat(width: 1152, height: 1536, fps: 30),
+            RealtimeVideoFormat(width: 1536, height: 1152, fps: 30)
+        ])
+    }
 
-        for model in models {
-            XCTAssertEqual(model.defaultFrameRate, 30)
-            XCTAssertEqual(model.minimumInputPixels, 200000)
-            XCTAssertEqual(model.maximumInputPixels, 2100000)
-            XCTAssertEqual(model.inputSizeAlignment, 32)
-            XCTAssertEqual(
-                model.defaultCameraVideoFormat,
-                RealtimeVideoFormat(width: 1080, height: 1920, fps: 30)
-            )
-            XCTAssertEqual(model.supportedVideoFormats, [
-                RealtimeVideoFormat(width: 1920, height: 1080, fps: 30),
-                RealtimeVideoFormat(width: 1080, height: 1920, fps: 30),
-                RealtimeVideoFormat(width: 1408, height: 1408, fps: 30),
-                RealtimeVideoFormat(width: 1152, height: 1536, fps: 30),
-                RealtimeVideoFormat(width: 1536, height: 1152, fps: 30)
-            ])
-        }
+    func testX21FlashModelCameraFormats() {
+        let model = RealtimeModel.x2_1_flash
+        XCTAssertEqual(model.displayName, "X2.1 Flash")
+        XCTAssertEqual(model.defaultFrameRate, 30)
+        XCTAssertEqual(model.maximumInputPixels, 921_600)
+        XCTAssertEqual(
+            model.defaultCameraVideoFormat,
+            RealtimeVideoFormat(width: 704, height: 1280, fps: 30)
+        )
+        XCTAssertEqual(model.supportedVideoFormats, [
+            RealtimeVideoFormat(width: 704, height: 1280, fps: 30),
+            RealtimeVideoFormat(width: 1280, height: 704, fps: 30),
+            RealtimeVideoFormat(width: 960, height: 960, fps: 30),
+            RealtimeVideoFormat(width: 1024, height: 768, fps: 30),
+            RealtimeVideoFormat(width: 768, height: 1024, fps: 30)
+        ])
     }
 
     func testContextNormalizesPromptAndReferencePath() {
