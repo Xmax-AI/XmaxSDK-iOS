@@ -28,10 +28,10 @@ public enum RealtimeCameraPreset: CaseIterable, Sendable {
     /// A landscape 4:3 frame.
     case resolution1536x1152
 
-    /// A portrait 11:20 frame for X2.1 Flash.
+    /// A portrait 9:16 preset for X2.1 Flash.
     case resolution704x1280
 
-    /// A landscape 20:11 frame for X2.1 Flash.
+    /// A landscape 16:9 preset for X2.1 Flash.
     case resolution1280x704
 
     /// A square frame for X2.1 Flash.
@@ -72,15 +72,30 @@ public enum RealtimeCameraPreset: CaseIterable, Sendable {
                 height: 1152
             )
         case .resolution704x1280:
-            CGSize(width: 704, height: 1280)
+            CGSize(
+                width: 704,
+                height: 1280
+            )
         case .resolution1280x704:
-            CGSize(width: 1280, height: 704)
+            CGSize(
+                width: 1280,
+                height: 704
+            )
         case .resolution960x960:
-            CGSize(width: 960, height: 960)
+            CGSize(
+                width: 960,
+                height: 960
+            )
         case .resolution1024x768:
-            CGSize(width: 1024, height: 768)
+            CGSize(
+                width: 1024,
+                height: 768
+            )
         case .resolution768x1024:
-            CGSize(width: 768, height: 1024)
+            CGSize(
+                width: 768,
+                height: 1024
+            )
         }
     }
 }
